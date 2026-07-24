@@ -1,3 +1,6 @@
+mod helper;
+
 fn main() {
-    println!("Hello, world!");
+    let token = helper::get_lichess_token();
+    println!("Lichess Token: {}", token);
 }
