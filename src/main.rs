@@ -1,19 +1,9 @@
-use reqwest::blocking::Client;
+mod board;
+use board::BoardState;
 
-mod helper;
+const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = helper::get_lichess_token();
-
-    let client = Client::new();
-
-    let res = client
-        .get("https://lichess.org/api/account")
-        .header("Authorization", format!("Bearer {}", token))
-        .send()?
-        .text()?;
-
-    println!("Response: {}", res);
-
-    Ok(())
+fn main(){
+    let board = BoardState::from_fen(START_FEN).unwrap().get_board();
+    println!("{board}");
 }
