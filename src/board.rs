@@ -130,17 +130,17 @@ pub struct BoardState {
 
 impl BoardState {
     pub fn from_fen(fen: &str) -> Result<Self, FenErr> {
-        let mut parts: Vec<&str> = fen.split_whitespace().collect();
+        let parts: Vec<&str> = fen.split_whitespace().collect();
         if parts.len() != 6 {
             return Err(FenErr::InvalidFormat);
         }
         Ok(Self {
-            board: Board::from_fen_part(parts.remove(0))?,
-            state_info: StateInfo::from_fen(parts)?,
+            board: Board::from_fen_part(parts[0])?,
+            state_info: StateInfo::from_fen(&parts[1..])?,
         })
     }
-    pub fn get_board(self) -> Board{
-        return self.board;
+    pub fn board(&self) -> &Board {
+        &self.board
     }
 }
 
@@ -165,24 +165,24 @@ fn square_from_algebratic(s: &str) -> Result<u8, FenErr> {
     if !(b'a'..=b'h').contains(file) || !(b'1'..b'8').contains(rank) {
         return Err(FenErr::InvalidSquare);
     }
-    let file = b'a' - file;
-    let rank = b'1' - rank;
+    let file = file - b'a';
+    let rank = rank - b'1';
     Ok(rank * 8 + file)
 }
 
 fn castle_rights(rights: &str) -> Result<u8, FenErr> {
-    if rights == "-"{
-        return Ok(0)
+    if rights == "-" {
+        return Ok(0);
     }
 
     let mut cr = 0;
-    for c in rights.as_bytes(){
+    for c in rights.as_bytes() {
         match c {
             b'K' => cr |= 8,
             b'Q' => cr |= 4,
             b'k' => cr |= 2,
             b'q' => cr |= 1,
-            _ => return Err(FenErr::InvalidCastleRights)
+            _ => return Err(FenErr::InvalidCastleRights),
         }
     }
     Ok(cr)
@@ -197,14 +197,14 @@ struct StateInfo {
 }
 
 impl StateInfo {
-    pub fn from_fen(fen_parts: Vec<&str>) -> Result<Self, FenErr> {
+    pub fn from_fen(fen_parts: &[&str]) -> Result<Self, FenErr> {
         Ok(Self {
             is_white_to_move: match fen_parts[0] {
                 "w" => true,
                 "b" => false,
                 _ => return Err(FenErr::InvalidSideToMove),
             },
-            has_castle_rights: castle_rights(fen_parts[2])?,
+            has_castle_rights: castle_rights(fen_parts[1])?,
             ep_square: match fen_parts[2] {
                 "-" => None,
                 sq => Some(square_from_algebratic(sq)?),
