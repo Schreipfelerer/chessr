@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Board {
     pieces: [[u64; 6]; 2], // [Color, PieceType]
     occupancy: [u64; 3],   // [White, Black, Both]
@@ -59,11 +60,33 @@ impl Board {
     pub fn get_piece_bitboard(&self, color: Color, piece: Piece) -> u64 {
         self.pieces[color as usize][piece as usize]
     }
-    pub fn get_color_occupancy(self, color: Color) -> u64 {
-        self.occupancy[color as usize]
+    pub fn is_occupied(&self, sq: Sq64) -> bool {
+        self.occupancy[2] >> sq.0 & 1 == 1
     }
-    pub fn get_occupancy(self) -> u64 {
-        self.occupancy[2]
+    pub fn is_occupied_firendly(&self, sq: Sq64, color: Color) -> bool {
+        self.occupancy[color as usize] >> sq.0 & 1 == 1
+    }
+    pub fn is_occupied_enemy(&self, sq: Sq64, color: Color) -> bool {
+        self.occupancy[color.flip() as usize] >> sq.0 & 1 == 1
+    }
+    pub fn is_piece(&self, sq: Sq64, color: Color, piece: Piece) -> bool {
+        self.pieces[color as usize][piece as usize] >> sq.0 & 1 == 1
+    }
+
+    pub fn toggle_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
+        let mask: u64 = 0x1 << sq.0;
+        self.pieces[color as usize][piece as usize] ^= mask;
+        self.occupancy[color as usize] ^= mask;
+        self.occupancy[2] ^= mask;
+    }
+
+    pub fn get_piece_at(&self, sq: Sq64, color: Color) -> Piece {
+        for p in Piece::ALL {
+            if self.pieces[color as usize][p as usize] >> sq.0 & 1 == 1 {
+                return p;
+            }
+        }
+        panic!("No Piece at square");
     }
 
     fn get_piece_visual(&self, rank: u8, file: u8) -> char {
@@ -106,6 +129,11 @@ impl Board {
         }
         return '.';
     }
+
+    pub fn find_king(&self, color: Color) -> Sq64 {
+        let bb = self.pieces[color as usize][Piece::King as usize];
+        Sq64(bb.trailing_zeros() as u8)
+    }
 }
 
 impl fmt::Display for Board {
@@ -123,9 +151,10 @@ impl fmt::Display for Board {
     }
 }
 
+#[derive(Debug)]
 pub struct BoardState {
-    board: Board,
-    state_info: StateInfo,
+    pub board: Board,
+    pub state_info: StateInfo,
 }
 
 impl BoardState {
@@ -139,12 +168,207 @@ impl BoardState {
             state_info: StateInfo::from_fen(&parts[1..])?,
         })
     }
-    pub fn board(&self) -> &Board {
-        &self.board
+
+    pub(crate) fn make_move(&mut self, m: Move) -> Undo {
+        let flags = m.flags();
+        let from = m.source();
+        let to = m.target();
+        let color = self.state_info.active_color();
+        let piece = self.board.get_piece_at(from, color);
+        self.state_info.ep_square = None;
+        self.board.toggle_piece(from, color, piece);
+
+        let mut undo = Undo::new(m, &self.state_info);
+
+        if piece == Piece::King {
+            self.state_info.remove_castle_rights(color);
+        }
+        if piece == Piece::Rook {
+            //Check if in corner
+            if color == Color::White && from.0 == 0 {
+                self.state_info.remove_castle_rights_side(color, false);
+            }
+            //Check if in corner
+            if color == Color::White && from.0 == 7 {
+                self.state_info.remove_castle_rights_side(color, true);
+            }
+            //Check if in corner
+            if color == Color::Black && from.0 == 56 {
+                self.state_info.remove_castle_rights_side(color, false);
+            }
+            //Check if in corner
+            if color == Color::Black && from.0 == 63 {
+                self.state_info.remove_castle_rights_side(color, true);
+            }
+        }
+
+        if flags == 0 {
+            self.board.toggle_piece(to, color, piece);
+        }
+        if flags == 1 {
+            // Pawn double push
+            self.board.toggle_piece(to, color, piece);
+            self.state_info.ep_square = match color {
+                Color::White => Some(Sq64(from.0 + 8)),
+                Color::Black => Some(Sq64(from.0 - 8)),
+            }
+        }
+        if flags == 2 {
+            //Kingside castle
+            self.board.toggle_piece(to, color, Piece::King);
+            self.board
+                .toggle_piece(Sq64(from.0 + 1), color, Piece::Rook);
+            self.board.toggle_piece(Sq64(to.0 + 1), color, Piece::Rook);
+        }
+        if flags == 3 {
+            //Queenside castle
+            self.board.toggle_piece(to, color, Piece::King);
+            self.board
+                .toggle_piece(Sq64(from.0 - 1), color, Piece::Rook);
+            self.board.toggle_piece(Sq64(to.0 - 2), color, Piece::Rook);
+        }
+
+        //EP
+        if flags == 5 {
+            self.board.toggle_piece(to, color, Piece::Pawn);
+            undo.captured_piece = Some(Piece::Pawn);
+            match color {
+                Color::White => self
+                    .board
+                    .toggle_piece(Sq64(to.0 - 8), Color::Black, Piece::Pawn),
+                Color::Black => self
+                    .board
+                    .toggle_piece(Sq64(to.0 + 8), Color::White, Piece::Pawn),
+            }
+        } else if flags & 4 == 4 {
+            let cp = self.board.get_piece_at(to, color.flip());
+            undo.captured_piece = Some(cp);
+            self.board.toggle_piece(to, color.flip(), cp);
+            //Check if in corner
+            if color == Color::White && to.0 == 0 {
+                self.state_info.remove_castle_rights_side(color, false);
+            }
+            //Check if in corner
+            if color == Color::White && to.0 == 7 {
+                self.state_info.remove_castle_rights_side(color, true);
+            }
+            //Check if in corner
+            if color == Color::Black && to.0 == 56 {
+                self.state_info.remove_castle_rights_side(color, false);
+            }
+            //Check if in corner
+            if color == Color::Black && to.0 == 63 {
+                self.state_info.remove_castle_rights_side(color, true);
+            }
+        }
+
+        //Captures
+        if flags == 4 {
+            self.board.toggle_piece(to, color, piece);
+        }
+
+        // Promotions
+        if flags & 8 == 8 {
+            let new_piece = match flags & 3 {
+                0 => Piece::Knight,
+                1 => Piece::Bishop,
+                2 => Piece::Rook,
+                3 => Piece::Queen,
+                _ => panic!("Non-Defined Flag"),
+            };
+            self.board.toggle_piece(to, color, new_piece);
+        }
+
+        if piece == Piece::Pawn || flags & 4 == 4 {
+            self.state_info.half_move_clock = 0
+        } else {
+            self.state_info.half_move_clock += 1
+        }
+
+        if color == Color::Black {
+            self.state_info.full_move_number += 1
+        }
+        self.state_info.is_white_to_move = !self.state_info.is_white_to_move;
+
+        undo
+    }
+
+    pub(crate) fn undo_move(&mut self, undo: Undo) {
+        let color = self.state_info.active_color();
+        let prev_color = color.flip();
+        let m = undo.r#move;
+        let from = m.source();
+        let to = m.target();
+        let flag = m.flags();
+
+        let piece = self.board.get_piece_at(to, prev_color);
+        self.board.toggle_piece(to, prev_color, piece);
+
+        if let Some(cp) = undo.captured_piece {
+            if flag == 5 {
+                let csq = Sq64(match color {
+                    Color::White => to.0 + 8,
+                    Color::Black => to.0 - 8,
+                });
+                self.board.toggle_piece(csq, color, cp);
+            } else {
+                self.board.toggle_piece(to, color, cp);
+            }
+        }
+
+        if flag & 8 == 8 {
+            // Promotion
+            self.board.toggle_piece(from, prev_color, Piece::Pawn);
+        } else {
+            self.board.toggle_piece(from, prev_color, piece);
+        }
+
+        if flag == 2 {
+            // Kingside castle
+            self.board
+                .toggle_piece(Sq64(to.0 - 1), prev_color, Piece::Rook);
+            self.board
+                .toggle_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
+        }
+        if flag == 3 {
+            // Queen castle
+            self.board
+                .toggle_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
+            self.board
+                .toggle_piece(Sq64(to.0 - 2), prev_color, Piece::Rook);
+        }
+
+        self.state_info.ep_square = undo.prev_ep_square;
+        self.state_info.has_castle_rights = undo.prev_castling_rights;
+        self.state_info.half_move_clock = undo.prev_halfmove_clock;
+        if color == Color::White {
+            self.state_info.full_move_number -= 1
+        }
+        self.state_info.is_white_to_move = !self.state_info.is_white_to_move;
     }
 }
 
-#[derive(Debug)]
+pub struct Undo {
+    r#move: Move,
+    captured_piece: Option<Piece>,
+    prev_halfmove_clock: u8,
+    prev_castling_rights: u8,
+    prev_ep_square: Option<Sq64>,
+}
+
+impl Undo {
+    pub fn new(m: Move, state_info: &StateInfo) -> Self {
+        Self {
+            r#move: m,
+            captured_piece: None,
+            prev_halfmove_clock: state_info.half_move_clock,
+            prev_castling_rights: state_info.has_castle_rights,
+            prev_ep_square: state_info.ep_square,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum FenErr {
     InvalidFormat,               // Doesnt have exaktly 6 Spaces
     InvalidCharInPiecePlacement, // Illeagal Piece in Placement
@@ -157,7 +381,7 @@ pub enum FenErr {
     InvalidCastleRights,         // Castle Rights should be -/[KQkq](1..4)
 }
 
-fn square_from_algebratic(s: &str) -> Result<u8, FenErr> {
+fn square_from_algebratic(s: &str) -> Result<Sq64, FenErr> {
     let [file, rank] = s.as_bytes() else {
         return Err(FenErr::InvalidSquare);
     };
@@ -167,7 +391,7 @@ fn square_from_algebratic(s: &str) -> Result<u8, FenErr> {
     }
     let file = file - b'a';
     let rank = rank - b'1';
-    Ok(rank * 8 + file)
+    Ok(Sq64(rank * 8 + file))
 }
 
 fn castle_rights(rights: &str) -> Result<u8, FenErr> {
@@ -188,12 +412,13 @@ fn castle_rights(rights: &str) -> Result<u8, FenErr> {
     Ok(cr)
 }
 
-struct StateInfo {
+#[derive(Debug)]
+pub struct StateInfo {
     has_castle_rights: u8, // Bit 0-3 Unused, White Short, White Long, Black Short, Black Long
     is_white_to_move: bool,
     half_move_clock: u8,
     full_move_number: u32,
-    ep_square: Option<u8>,
+    pub ep_square: Option<Sq64>,
 }
 
 impl StateInfo {
@@ -217,23 +442,41 @@ impl StateInfo {
                 .map_err(|_| FenErr::InvalidFullmoveNumber)?,
         })
     }
+    pub fn active_color(&self) -> Color {
+        (!self.is_white_to_move).into()
+    }
+    pub fn has_castle_rights(&self, color: Color, is_short: bool) -> bool {
+        let mut offset = match color {
+            Color::Black => 0,
+            Color::White => 2,
+        };
+        if is_short {
+            offset += 1;
+        }
+        self.has_castle_rights << offset & 0x1 == 1
+    }
+    pub fn remove_castle_rights_side(&mut self, color: Color, is_short: bool) {
+        let mut offset = match color {
+            Color::Black => 0,
+            Color::White => 2,
+        };
+        if is_short {
+            offset += 1;
+        }
+        let mask = 254_u8.wrapping_shl(offset);
+        self.has_castle_rights &= mask
+    }
+    pub fn remove_castle_rights(&mut self, color: Color) {
+        let offset = match color {
+            Color::Black => 0,
+            Color::White => 2,
+        };
+        let mask = !3_u8.wrapping_shl(offset);
+        self.has_castle_rights &= mask
+    }
 }
 
-struct Move {
-    // Bit 0-5 Source Square
-    // Bit 6-11 Target Square
-    // Bit 12-15 Special Flags (Promotion Flag, Castle Flag, Special Flags)
-    // 0000: Quiet move
-    // 0001: Double pawn push
-    // 0010: King castle / 0011: Queen castle
-    // 0100: Capture
-    // 0101: EP capture
-    // 1000–1011: Promotions (Knight, Bishop, Rook, Queen)
-    // 1100–1111: Capture + Promotions (Knight, Bishop, Rook, Queen)
-    r#move: u16,
-}
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Color {
     White = 0,
@@ -242,6 +485,12 @@ pub enum Color {
 
 impl Color {
     pub const ALL: [Color; 2] = [Color::White, Color::Black];
+    pub fn flip(self) -> Color {
+        match self {
+            Color::Black => Color::White,
+            Color::White => Color::Black,
+        }
+    }
 }
 
 impl Into<Color> for bool {
@@ -253,7 +502,7 @@ impl Into<Color> for bool {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Piece {
     Pawn = 0,
@@ -273,4 +522,152 @@ impl Piece {
         Piece::Queen,
         Piece::King,
     ];
+    pub const PROMOTABLE: [Piece; 4] = [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen];
+}
+
+// Bit 0-5 Source Square
+// Bit 6-11 Target Square
+// Bit 12-15 Special Flags (Promotion Flag, Castle Flag, Special Flags)
+// 0000: Quiet move
+// 0001: Double pawn push
+// 0010: King castle / 0011: Queen castle
+// 0100: Capture
+// 0101: EP capture
+// 1000–1011: Promotions (Knight, Bishop, Rook, Queen)
+// 1100–1111: Capture + Promotions (Knight, Bishop, Rook, Queen)
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Move(pub u16);
+
+impl Move {
+    #[inline(always)]
+    pub fn new(from: Sq64, to: Sq64) -> Self {
+        Move((from.0 as u16) | ((to.0 as u16) << 6))
+    }
+
+    #[inline(always)]
+    pub fn new_flags(from: Sq64, to: Sq64, flags: u8) -> Self {
+        Move((from.0 as u16) | ((to.0 as u16) << 6) | ((flags as u16) << 12))
+    }
+
+    #[inline(always)]
+    pub fn flags(self) -> u8 {
+        (self.0 >> 12) as u8
+    }
+    #[inline(always)]
+    pub fn target(self) -> Sq64 {
+        Sq64(((self.0 >> 6) & 0x3F) as u8)
+    }
+    #[inline(always)]
+    pub fn source(self) -> Sq64 {
+        Sq64((self.0 & 0x3F) as u8)
+    }
+
+    pub fn from_notation(bs: &BoardState, notation: &str) -> Option<Self> {
+        let color = bs.state_info.active_color();
+        if notation == "0-0" {
+            return Some(match color {
+                Color::White => Move(4 | 6 << 6 | 2 << 12),
+                Color::Black => Move(60 | 62 << 6 | 2 << 12),
+            });
+        }
+        if notation == "0-0-0" {
+            return Some(match color {
+                Color::White => Move(4 | 2 << 6 | 3 << 12),
+                Color::Black => Move(60 | 58 << 6 | 3 << 12),
+            });
+        }
+
+        let bytes = notation.as_bytes();
+
+        if bytes.len() != 4 && bytes.len() != 6 {
+            return None;
+        }
+
+        let mut flag = 0;
+        if bytes.len() == 6 {
+            flag = match (bytes[4], bytes[5]) {
+                (b'=', b'N' | b'K') => 8,
+                (b'=', b'B') => 9,
+                (b'=', b'R') => 10,
+                (b'=', b'Q') => 11,
+                (b'e', b'P') => 5,
+                _ => return None,
+            };
+        }
+
+        let from_sq = Sq64::from_notation(&bytes[..2])?;
+        let to_sq = Sq64::from_notation(&bytes[2..4])?;
+
+        if bs.board.is_occupied_enemy(to_sq, color) {
+            flag += 4
+        }
+        Some(Move(from_sq.0 as u16 | (to_sq.0 as u16) << 6 | flag << 12))
+    }
+}
+
+impl fmt::Display for Move {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.source(), self.target())?;
+        if self.flags() & 8 == 8 {
+            let promo_string = match self.flags() & 3 {
+                0 => "n",
+                1 => "b",
+                2 => "r",
+                3 => "q",
+                _ => unreachable!(),
+            };
+            write!(f, "-{}", promo_string)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sq64(pub u8);
+impl Sq64 {
+    #[inline(always)]
+    pub fn to_sq88(self) -> Sq88 {
+        Sq88(self.0 + (self.0 & !7))
+    }
+    pub fn from_notation(notation: &[u8]) -> Option<Self> {
+        if notation.len() != 2 {
+            return None;
+        }
+        if !(b'a'..=b'g').contains(&notation[0]) {
+            return None;
+        }
+        if !(b'1'..=b'8').contains(&notation[1]) {
+            return None;
+        }
+        Some(Sq64(notation[0] - b'a' + ((notation[1] - b'1') * 8)))
+    }
+}
+
+impl fmt::Display for Sq64 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}",
+            (b'a' + (self.0 & 7)) as char,
+            (b'1' + (self.0 >> 3)) as char
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sq88(pub u8);
+impl Sq88 {
+    #[inline(always)]
+    pub fn is_on_board(self) -> bool {
+        (self.0 & 0x88) == 0
+    }
+
+    #[inline(always)]
+    pub fn to_sq64(self) -> Sq64 {
+        Sq64((self.0 + (self.0 & 7)) >> 1)
+    }
+    #[inline(always)]
+    pub fn step(self, offset: i8) -> Sq88 {
+        Sq88(((self.0 as i8).wrapping_add(offset)) as u8)
+    }
 }
