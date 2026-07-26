@@ -210,29 +210,31 @@ pub fn generate_castles(
 ) {
     //Check Short Castle
     if state_info.has_castle_rights(c, true) {
-        //Not Occupied
-        if ![from_square.0 + 1, from_square.0 + 2]
-            .iter()
-            .any(|sq| board.is_occupied(Sq64(*sq)))
-            && [from_square.0, from_square.0 + 1, from_square.0 + 2]
-                .iter()
-                .any(|sq| is_square_attacked_by(Sq64(*sq).to_sq88(), c.flip(), board))
-        {
-            moves.push(Move::new_flags(from_square, Sq64(from_square.0 + 2), 0x2));
+        let f_sq = Sq64(from_square.0 + 1);
+        let g_sq = Sq64(from_square.0 + 2);
+
+        let path_unoccupied = !board.is_occupied(f_sq) && !board.is_occupied(g_sq);
+        let path_safe = !is_square_attacked_by(from_square.to_sq88(), c.flip(), board)
+            && !is_square_attacked_by(f_sq.to_sq88(), c.flip(), board);
+
+        if path_unoccupied && path_safe {
+            moves.push(Move::new_flags(from_square, g_sq, 0x2));
         }
     }
 
     //Check Long Castle
     if state_info.has_castle_rights(c, false) {
-        //Not Occupied
-        if ![from_square.0 - 1, from_square.0 - 2, from_square.0 - 3]
-            .iter()
-            .any(|sq| board.is_occupied(Sq64(*sq)))
-            && [from_square.0, from_square.0 - 1, from_square.0 - 2]
-                .iter()
-                .any(|sq| is_square_attacked_by(Sq64(*sq).to_sq88(), c.flip(), board))
-        {
-            moves.push(Move::new_flags(from_square, Sq64(from_square.0 - 2), 0x2));
+        let d_sq = Sq64(from_square.0 - 1);
+        let c_sq = Sq64(from_square.0 - 2);
+        let b_sq = Sq64(from_square.0 - 3);
+
+        let path_unoccupied =
+            !board.is_occupied(d_sq) && !board.is_occupied(c_sq) && !board.is_occupied(b_sq);
+        let path_safe = !is_square_attacked_by(from_square.to_sq88(), c.flip(), board)
+            && !is_square_attacked_by(d_sq.to_sq88(), c.flip(), board);
+
+        if path_unoccupied && path_safe {
+            moves.push(Move::new_flags(from_square, c_sq, 0x3));
         }
     }
 }
@@ -356,12 +358,32 @@ pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
 fn test_perft() {
     let start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     assert_eq!(
-        number_of_moves(&mut BoardState::from_fen(start_fen).unwrap(), 5),
-        4865609
+        number_of_moves(&mut BoardState::from_fen(start_fen).unwrap(), 4),
+        197_281
     );
-    let perft5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+    let pos2 = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 0";
     assert_eq!(
-        number_of_moves(&mut BoardState::from_fen(perft5).unwrap(), 3),
+        number_of_moves(&mut BoardState::from_fen(pos2).unwrap(), 3),
+        97862
+    );
+    let pos3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
+    assert_eq!(
+        number_of_moves(&mut BoardState::from_fen(pos3).unwrap(), 4),
+        43238
+    );
+    let pos4 = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
+    assert_eq!(
+        number_of_moves(&mut BoardState::from_fen(pos4).unwrap(), 3),
+        9467
+    );
+    let pos5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+    assert_eq!(
+        number_of_moves(&mut BoardState::from_fen(pos5).unwrap(), 3),
         62379
+    );
+    let pos6 = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
+    assert_eq!(
+        number_of_moves(&mut BoardState::from_fen(pos6).unwrap(), 3),
+        89890
     );
 }

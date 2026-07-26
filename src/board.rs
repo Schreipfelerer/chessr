@@ -186,19 +186,19 @@ impl BoardState {
         if piece == Piece::Rook {
             //Check if in corner
             if color == Color::White && from.0 == 0 {
-                self.state_info.remove_castle_rights_side(color, false);
+                self.state_info.remove_castle_rights_side(Color::White, false);
             }
             //Check if in corner
             if color == Color::White && from.0 == 7 {
-                self.state_info.remove_castle_rights_side(color, true);
+                self.state_info.remove_castle_rights_side(Color::White, true);
             }
             //Check if in corner
             if color == Color::Black && from.0 == 56 {
-                self.state_info.remove_castle_rights_side(color, false);
+                self.state_info.remove_castle_rights_side(Color::Black, false);
             }
             //Check if in corner
             if color == Color::Black && from.0 == 63 {
-                self.state_info.remove_castle_rights_side(color, true);
+                self.state_info.remove_castle_rights_side(Color::Black, true);
             }
         }
 
@@ -245,20 +245,20 @@ impl BoardState {
             undo.captured_piece = Some(cp);
             self.board.toggle_piece(to, color.flip(), cp);
             //Check if in corner
-            if color == Color::White && to.0 == 0 {
-                self.state_info.remove_castle_rights_side(color, false);
+            if color == Color::White && to.0 == 56 {
+                self.state_info.remove_castle_rights_side(Color::Black, false);
             }
             //Check if in corner
-            if color == Color::White && to.0 == 7 {
-                self.state_info.remove_castle_rights_side(color, true);
+            if color == Color::White && to.0 == 63 {
+                self.state_info.remove_castle_rights_side(Color::Black, true);
             }
             //Check if in corner
-            if color == Color::Black && to.0 == 56 {
-                self.state_info.remove_castle_rights_side(color, false);
+            if color == Color::Black && to.0 == 0 {
+                self.state_info.remove_castle_rights_side(Color::White, false);
             }
             //Check if in corner
-            if color == Color::Black && to.0 == 63 {
-                self.state_info.remove_castle_rights_side(color, true);
+            if color == Color::Black && to.0 == 7 {
+                self.state_info.remove_castle_rights_side(Color::White, true);
             }
         }
 
@@ -453,7 +453,7 @@ impl StateInfo {
         if is_short {
             offset += 1;
         }
-        self.has_castle_rights << offset & 0x1 == 1
+        self.has_castle_rights >> offset & 0x1 == 1
     }
     pub fn remove_castle_rights_side(&mut self, color: Color, is_short: bool) {
         let mut offset = match color {
@@ -463,7 +463,7 @@ impl StateInfo {
         if is_short {
             offset += 1;
         }
-        let mask = 254_u8.wrapping_shl(offset);
+        let mask = !1_u8.wrapping_shl(offset);
         self.has_castle_rights &= mask
     }
     pub fn remove_castle_rights(&mut self, color: Color) {
@@ -633,7 +633,7 @@ impl Sq64 {
         if notation.len() != 2 {
             return None;
         }
-        if !(b'a'..=b'g').contains(&notation[0]) {
+        if !(b'a'..=b'h').contains(&notation[0]) {
             return None;
         }
         if !(b'1'..=b'8').contains(&notation[1]) {
