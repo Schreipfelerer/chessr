@@ -11,15 +11,17 @@ pub const KING_OFFSETS: [i8; 8] = [1, -1, 16, -16, 15, 17, -15, -17];
 pub const KNIGHT_OFFSETS: [i8; 8] = [31, 33, 18, 14, -31, -33, -18, -14];
 pub const KNIGHT_ATTACKS: [u64; 64] = compute_attacks(&KNIGHT_OFFSETS);
 pub const KING_ATTACKS: [u64; 64] = compute_attacks(&KING_OFFSETS);
+pub const PAWN_ATTACKS: [[u64; 64]; 2] = [compute_attacks(&[15, 17]), compute_attacks(&[-15, -17])];
 
-const fn compute_attacks(offsets: &[i8; 8]) -> [u64; 64] {
+const fn compute_attacks(offsets: &[i8]) -> [u64; 64] {
+    let len = offsets.len();
     let mut table = [0u64; 64];
     let mut sq = 0u8;
     while sq < 64 {
         let from_0x88 = sq + (sq & !7); // same as Sq64::to_sq88
         let mut bb = 0u64;
         let mut i = 0;
-        while i < 8 {
+        while i < len {
             let offset = offsets[i];
             let to_0x88 = (from_0x88 as i8).wrapping_add(offset) as u8;
             if to_0x88 & 0x88 == 0 {
@@ -52,7 +54,6 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
                 Piece::Pawn => generate_pawn_moves(
                     board,
                     from_sq,
-                    from_square_0x88,
                     color,
                     &mut moves,
                     state_info,
@@ -141,7 +142,6 @@ pub fn generate_direct_moves(
 pub fn generate_pawn_moves(
     board: &Board,
     from_square: Sq64,
-    from_sq: Sq88,
     c: Color,
     moves: &mut ArrayVec<Move, 256>,
     state_info: &StateInfo,
@@ -177,35 +177,27 @@ pub fn generate_pawn_moves(
         }
     }
     // Taking
-    let to_sqs = match c {
-        Color::White => [Sq88(from_sq.0 + 17), Sq88(from_sq.0 + 15)],
-        Color::Black => [Sq88(from_sq.0 - 17), Sq88(from_sq.0 - 15)],
-    };
-    for to_sq in to_sqs {
-        if !to_sq.is_on_board() {
-            continue;
-        }
-        let target_square = to_sq.to_sq64();
-        if board.is_occupied_enemy(target_square, c) {
-            //Can Take
-            if target_square.0 >> 3 == 7 || target_square.0 >> 3 == 0 {
-                //Promotion Capture
-                for piece in Piece::PROMOTABLE {
-                    moves.push(Move::new_flags(
-                        from_square,
-                        target_square,
-                        0xC + piece as u8 - 1,
-                    ));
-                }
-            } else {
-                //Capture
-                moves.push(Move::new_flags(from_square, target_square, 0x4));
+    let pa_bb = PAWN_ATTACKS[c as usize][from_square.0 as usize];
+    let mut bb = pa_bb & board.get_enemy_occupancy(c);
+    while bb != 0 {
+        let sq = bb.trailing_zeros() as u8;
+        bb &= bb - 1; // clear lsb
+        let to_sq = Sq64(sq);
+        //Can Take
+        if to_sq.0 >> 3 == 7 || to_sq.0 >> 3 == 0 {
+            //Promotion Capture
+            for piece in Piece::PROMOTABLE {
+                moves.push(Move::new_flags(from_square, to_sq, 0xC + piece as u8 - 1));
             }
         } else {
-            //EP.
-            if state_info.ep_square == Some(target_square) {
-                moves.push(Move::new_flags(from_square, target_square, 0x5));
-            }
+            //Capture
+            moves.push(Move::new_flags(from_square, to_sq, 0x4));
+        }
+    }
+    // EP
+    if let Some(ep_sq) = state_info.ep_square {
+        if pa_bb & (1 << ep_sq.0) != 0 {
+            moves.push(Move::new_flags(from_square, ep_sq, 0x5));
         }
     }
 }
@@ -249,22 +241,14 @@ pub fn generate_castles(
 }
 
 pub fn is_square_attacked_by(sq_0x88: Sq88, c: Color, board: &Board) -> bool {
-    let sq = sq_0x88.to_sq64();
-    for po in [15, 17] {
-        let nsq = match c {
-            Color::White => sq_0x88.step(-po),
-            Color::Black => sq_0x88.step(po),
-        };
-        if nsq.is_on_board() {
-            if board.is_piece(nsq.to_sq64(), c, Piece::Pawn) {
-                return true;
-            }
-        }
-    }
-    if KNIGHT_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(c, Piece::Knight) != 0 {
+    let sq = sq_0x88.to_sq64().0 as usize;
+    if PAWN_ATTACKS[c.flip() as usize][sq] & board.get_piece_bitboard(c, Piece::Pawn) != 0 {
         return true;
     }
-    if KING_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(c, Piece::King) != 0 {
+    if KNIGHT_ATTACKS[sq] & board.get_piece_bitboard(c, Piece::Knight) != 0 {
+        return true;
+    }
+    if KING_ATTACKS[sq] & board.get_piece_bitboard(c, Piece::King) != 0 {
         return true;
     }
     for bo in BISHOP_OFFSETS {

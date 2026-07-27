@@ -145,6 +145,10 @@ impl Board {
     pub fn get_friendly_occupancy(&self, c: Color) -> u64 {
         self.occupancy[c as usize]
     }
+
+    pub fn get_enemy_occupancy(&self, c: Color) -> u64 {
+        self.occupancy[c.flip() as usize]
+    }
 }
 
 impl fmt::Display for Board {
