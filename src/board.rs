@@ -90,44 +90,23 @@ impl Board {
     }
 
     fn get_piece_visual(&self, rank: u8, file: u8) -> char {
-        let bit = 1u64 << file + rank * 8;
-        if self.get_piece_bitboard(Color::White, Piece::Pawn) & bit != 0 {
-            return 'P';
+        let sq = file + rank * 8;
+        let bit = 1u64 << sq;
+        if self.get_occupany() & bit == 0 {
+            return '.';
         }
-        if self.get_piece_bitboard(Color::White, Piece::Knight) & bit != 0 {
-            return 'N';
+        let mut char = match self.get_piece_at(Sq64(sq)) {
+            Piece::Pawn => 'P',
+            Piece::Knight => 'K',
+            Piece::Bishop => 'B',
+            Piece::Rook => 'R',
+            Piece::Queen => 'Q',
+            Piece::King => 'K',
+        };
+        if self.occupancy[0] & bit == 0 {
+            char = char.to_ascii_lowercase();
         }
-        if self.get_piece_bitboard(Color::White, Piece::Bishop) & bit != 0 {
-            return 'B';
-        }
-        if self.get_piece_bitboard(Color::White, Piece::Rook) & bit != 0 {
-            return 'R';
-        }
-        if self.get_piece_bitboard(Color::White, Piece::Queen) & bit != 0 {
-            return 'Q';
-        }
-        if self.get_piece_bitboard(Color::White, Piece::King) & bit != 0 {
-            return 'K';
-        }
-        if self.get_piece_bitboard(Color::Black, Piece::Pawn) & bit != 0 {
-            return 'p';
-        }
-        if self.get_piece_bitboard(Color::Black, Piece::Knight) & bit != 0 {
-            return 'n';
-        }
-        if self.get_piece_bitboard(Color::Black, Piece::Bishop) & bit != 0 {
-            return 'b';
-        }
-        if self.get_piece_bitboard(Color::Black, Piece::Rook) & bit != 0 {
-            return 'r';
-        }
-        if self.get_piece_bitboard(Color::Black, Piece::Queen) & bit != 0 {
-            return 'q';
-        }
-        if self.get_piece_bitboard(Color::Black, Piece::King) & bit != 0 {
-            return 'k';
-        }
-        return '.';
+        char
     }
 
     pub fn find_king(&self, color: Color) -> Sq64 {
@@ -272,7 +251,7 @@ impl BoardState {
         self.board.remove_piece(to, prev_color, piece);
 
         if let Some(cp) = undo.captured_piece {
-            if flag == MoveFlag::EnPassant{
+            if flag == MoveFlag::EnPassant {
                 let csq = Sq64(match color {
                     Color::White => to.0 + 8,
                     Color::Black => to.0 - 8,
@@ -283,7 +262,7 @@ impl BoardState {
             }
         }
 
-        if flag.is_promotion(){
+        if flag.is_promotion() {
             self.board.place_piece(from, prev_color, Piece::Pawn);
         } else {
             self.board.place_piece(from, prev_color, piece);
@@ -590,18 +569,18 @@ impl MoveFlag {
     pub const fn new_promotion(p: Piece) -> Self {
         match p {
             Piece::Knight => MoveFlag::PromoKnight,
-            Piece::Bishop => MoveFlag::PromoBishop, 
-            Piece::Rook => MoveFlag::PromoRook, 
-            Piece::Queen => MoveFlag::PromoQueen, 
+            Piece::Bishop => MoveFlag::PromoBishop,
+            Piece::Rook => MoveFlag::PromoRook,
+            Piece::Queen => MoveFlag::PromoQueen,
             _ => unreachable!(),
         }
     }
     pub const fn new_promotion_capture(p: Piece) -> Self {
         match p {
             Piece::Knight => MoveFlag::PromoKnightCapture,
-            Piece::Bishop => MoveFlag::PromoBishopCapture, 
-            Piece::Rook => MoveFlag::PromoRookCapture, 
-            Piece::Queen => MoveFlag::PromoQueenCapture, 
+            Piece::Bishop => MoveFlag::PromoBishopCapture,
+            Piece::Rook => MoveFlag::PromoRookCapture,
+            Piece::Queen => MoveFlag::PromoQueenCapture,
             _ => unreachable!(),
         }
     }
