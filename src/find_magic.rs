@@ -64,7 +64,7 @@ pub fn find_magic_bishops() {
     let mut rng = Xorshift64(0x1234_5678_9abc_def0); // any nonzero seed
     print!("pub const BISHOP_MAGIC: [u64; 64] = [");
     for sq in 0..64 {
-        let magic = find_magic(sq, &mut rng, BISHOP_BLOCKERS, &BISHOP_OFFSETS, 9);
+        let magic = find_magic(sq, &mut rng, **BISHOP_BLOCKERS, &BISHOP_OFFSETS, 9);
         print!("0x{:016X}, ", magic);
     }
     println!("];");
@@ -73,7 +73,7 @@ pub fn find_magic_rooks() {
     let mut rng = Xorshift64(0x1234_5678_9abc_def0); // any nonzero seed
     print!("pub const ROOK_MAGIC: [u64; 64] = [");
     for sq in 0..64 {
-        let magic = find_magic(sq, &mut rng, ROOK_BLOCKERS, &ROOK_OFFSETS, 12);
+        let magic = find_magic(sq, &mut rng, **ROOK_BLOCKERS, &ROOK_OFFSETS, 12);
         print!("0x{:016X}, ", magic);
     }
     println!("];");
