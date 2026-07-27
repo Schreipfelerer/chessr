@@ -4,6 +4,7 @@ use std::fmt;
 pub struct Board {
     pieces: [[u64; 6]; 2], // [Color, PieceType]
     occupancy: [u64; 3],   // [White, Black, Both]
+    mailbox: [Option<Piece>; 64],
 }
 
 impl Board {
@@ -11,6 +12,7 @@ impl Board {
         let mut pieces: [[u64; 6]; 2] = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]];
         let mut rank = 7;
         let mut file = 0;
+        let mut mailbox: [Option<Piece>; 64] = [None; 64];
         for c in fen_part.chars() {
             match c {
                 '/' => {
@@ -32,6 +34,7 @@ impl Board {
                         'k' => Piece::King,
                         _ => return Err(FenErr::InvalidCharInPiecePlacement),
                     };
+                    mailbox[(file + rank * 8) as usize] = Some(piece);
                     pieces[color as usize][piece as usize] |= 1u64 << file + rank * 8;
                     file += 1;
                 }
@@ -55,6 +58,7 @@ impl Board {
         Ok(Self {
             pieces: pieces,
             occupancy: occupancies,
+            mailbox: mailbox,
         })
     }
     pub fn get_piece_bitboard(&self, color: Color, piece: Piece) -> u64 {
@@ -73,20 +77,23 @@ impl Board {
         self.pieces[color as usize][piece as usize] >> sq.0 & 1 == 1
     }
 
-    pub fn toggle_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
+    pub fn remove_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
         let mask: u64 = 0x1 << sq.0;
         self.pieces[color as usize][piece as usize] ^= mask;
         self.occupancy[color as usize] ^= mask;
         self.occupancy[2] ^= mask;
+        self.mailbox[sq.0 as usize] = None;
+    }
+    pub fn place_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
+        let mask: u64 = 0x1 << sq.0;
+        self.pieces[color as usize][piece as usize] ^= mask;
+        self.occupancy[color as usize] ^= mask;
+        self.occupancy[2] ^= mask;
+        self.mailbox[sq.0 as usize] = Some(piece);
     }
 
-    pub fn get_piece_at(&self, sq: Sq64, color: Color) -> Piece {
-        for p in Piece::ALL {
-            if self.pieces[color as usize][p as usize] >> sq.0 & 1 == 1 {
-                return p;
-            }
-        }
-        panic!("No Piece at square");
+    pub fn get_piece_at(&self, sq: Sq64) -> Piece {
+        self.mailbox[sq.0 as usize].unwrap()
     }
 
     fn get_piece_visual(&self, rank: u8, file: u8) -> char {
@@ -174,9 +181,9 @@ impl BoardState {
         let from = m.source();
         let to = m.target();
         let color = self.state_info.active_color();
-        let piece = self.board.get_piece_at(from, color);
+        let piece = self.board.get_piece_at(from);
         self.state_info.ep_square = None;
-        self.board.toggle_piece(from, color, piece);
+        self.board.remove_piece(from, color, piece);
 
         let mut undo = Undo::new(m, &self.state_info);
 
@@ -186,28 +193,32 @@ impl BoardState {
         if piece == Piece::Rook {
             //Check if in corner
             if color == Color::White && from.0 == 0 {
-                self.state_info.remove_castle_rights_side(Color::White, false);
+                self.state_info
+                    .remove_castle_rights_side(Color::White, false);
             }
             //Check if in corner
             if color == Color::White && from.0 == 7 {
-                self.state_info.remove_castle_rights_side(Color::White, true);
+                self.state_info
+                    .remove_castle_rights_side(Color::White, true);
             }
             //Check if in corner
             if color == Color::Black && from.0 == 56 {
-                self.state_info.remove_castle_rights_side(Color::Black, false);
+                self.state_info
+                    .remove_castle_rights_side(Color::Black, false);
             }
             //Check if in corner
             if color == Color::Black && from.0 == 63 {
-                self.state_info.remove_castle_rights_side(Color::Black, true);
+                self.state_info
+                    .remove_castle_rights_side(Color::Black, true);
             }
         }
 
         if flags == 0 {
-            self.board.toggle_piece(to, color, piece);
+            self.board.place_piece(to, color, piece);
         }
         if flags == 1 {
             // Pawn double push
-            self.board.toggle_piece(to, color, piece);
+            self.board.place_piece(to, color, piece);
             self.state_info.ep_square = match color {
                 Color::White => Some(Sq64(from.0 + 8)),
                 Color::Black => Some(Sq64(from.0 - 8)),
@@ -215,56 +226,58 @@ impl BoardState {
         }
         if flags == 2 {
             //Kingside castle
-            self.board.toggle_piece(to, color, Piece::King);
-            self.board
-                .toggle_piece(Sq64(from.0 + 1), color, Piece::Rook);
-            self.board.toggle_piece(Sq64(to.0 + 1), color, Piece::Rook);
+            self.board.place_piece(to, color, Piece::King);
+            self.board.place_piece(Sq64(from.0 + 1), color, Piece::Rook);
+            self.board.remove_piece(Sq64(to.0 + 1), color, Piece::Rook);
         }
         if flags == 3 {
             //Queenside castle
-            self.board.toggle_piece(to, color, Piece::King);
-            self.board
-                .toggle_piece(Sq64(from.0 - 1), color, Piece::Rook);
-            self.board.toggle_piece(Sq64(to.0 - 2), color, Piece::Rook);
+            self.board.place_piece(to, color, Piece::King);
+            self.board.place_piece(Sq64(from.0 - 1), color, Piece::Rook);
+            self.board.remove_piece(Sq64(to.0 - 2), color, Piece::Rook);
         }
 
         //EP
         if flags == 5 {
-            self.board.toggle_piece(to, color, Piece::Pawn);
+            self.board.place_piece(to, color, Piece::Pawn);
             undo.captured_piece = Some(Piece::Pawn);
             match color {
                 Color::White => self
                     .board
-                    .toggle_piece(Sq64(to.0 - 8), Color::Black, Piece::Pawn),
+                    .remove_piece(Sq64(to.0 - 8), Color::Black, Piece::Pawn),
                 Color::Black => self
                     .board
-                    .toggle_piece(Sq64(to.0 + 8), Color::White, Piece::Pawn),
+                    .remove_piece(Sq64(to.0 + 8), Color::White, Piece::Pawn),
             }
         } else if flags & 4 == 4 {
-            let cp = self.board.get_piece_at(to, color.flip());
+            let cp = self.board.get_piece_at(to);
             undo.captured_piece = Some(cp);
-            self.board.toggle_piece(to, color.flip(), cp);
+            self.board.remove_piece(to, color.flip(), cp);
             //Check if in corner
             if color == Color::White && to.0 == 56 {
-                self.state_info.remove_castle_rights_side(Color::Black, false);
+                self.state_info
+                    .remove_castle_rights_side(Color::Black, false);
             }
             //Check if in corner
             if color == Color::White && to.0 == 63 {
-                self.state_info.remove_castle_rights_side(Color::Black, true);
+                self.state_info
+                    .remove_castle_rights_side(Color::Black, true);
             }
             //Check if in corner
             if color == Color::Black && to.0 == 0 {
-                self.state_info.remove_castle_rights_side(Color::White, false);
+                self.state_info
+                    .remove_castle_rights_side(Color::White, false);
             }
             //Check if in corner
             if color == Color::Black && to.0 == 7 {
-                self.state_info.remove_castle_rights_side(Color::White, true);
+                self.state_info
+                    .remove_castle_rights_side(Color::White, true);
             }
         }
 
         //Captures
         if flags == 4 {
-            self.board.toggle_piece(to, color, piece);
+            self.board.place_piece(to, color, piece);
         }
 
         // Promotions
@@ -276,7 +289,7 @@ impl BoardState {
                 3 => Piece::Queen,
                 _ => panic!("Non-Defined Flag"),
             };
-            self.board.toggle_piece(to, color, new_piece);
+            self.board.place_piece(to, color, new_piece);
         }
 
         if piece == Piece::Pawn || flags & 4 == 4 {
@@ -301,8 +314,8 @@ impl BoardState {
         let to = m.target();
         let flag = m.flags();
 
-        let piece = self.board.get_piece_at(to, prev_color);
-        self.board.toggle_piece(to, prev_color, piece);
+        let piece = self.board.get_piece_at(to);
+        self.board.remove_piece(to, prev_color, piece);
 
         if let Some(cp) = undo.captured_piece {
             if flag == 5 {
@@ -310,32 +323,32 @@ impl BoardState {
                     Color::White => to.0 + 8,
                     Color::Black => to.0 - 8,
                 });
-                self.board.toggle_piece(csq, color, cp);
+                self.board.place_piece(csq, color, cp);
             } else {
-                self.board.toggle_piece(to, color, cp);
+                self.board.place_piece(to, color, cp);
             }
         }
 
         if flag & 8 == 8 {
             // Promotion
-            self.board.toggle_piece(from, prev_color, Piece::Pawn);
+            self.board.place_piece(from, prev_color, Piece::Pawn);
         } else {
-            self.board.toggle_piece(from, prev_color, piece);
+            self.board.place_piece(from, prev_color, piece);
         }
 
         if flag == 2 {
             // Kingside castle
             self.board
-                .toggle_piece(Sq64(to.0 - 1), prev_color, Piece::Rook);
+                .remove_piece(Sq64(to.0 - 1), prev_color, Piece::Rook);
             self.board
-                .toggle_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
+                .place_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
         }
         if flag == 3 {
             // Queen castle
             self.board
-                .toggle_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
+                .remove_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
             self.board
-                .toggle_piece(Sq64(to.0 - 2), prev_color, Piece::Rook);
+                .place_piece(Sq64(to.0 - 2), prev_color, Piece::Rook);
         }
 
         self.state_info.ep_square = undo.prev_ep_square;
@@ -476,7 +489,7 @@ impl StateInfo {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum Color {
     White = 0,
@@ -502,7 +515,7 @@ impl Into<Color> for bool {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum Piece {
     Pawn = 0,

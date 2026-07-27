@@ -16,16 +16,14 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
     let color = state_info.active_color();
     let mut moves = ArrayVec::new();
 
-    for sq in 0..64 {
-        let from_sq = Sq64(sq);
-        if !board.is_occupied_firendly(from_sq, color) {
-            continue;
-        }
-        let from_square_0x88 = from_sq.to_sq88();
-        for piece in Piece::ALL {
-            if !board.is_piece(from_sq, color, piece) {
-                continue;
-            }
+    for piece in Piece::ALL {
+        let mut bb = board.get_piece_bitboard(color, piece);
+        while bb != 0 {
+            let sq = bb.trailing_zeros() as u8;
+            bb &= bb - 1; // clear lsb
+            let from_sq = Sq64(sq);
+            let from_square_0x88 = from_sq.to_sq88();
+            // dispatch to the right generator
             match piece {
                 Piece::Pawn => generate_pawn_moves(
                     board,
