@@ -1,5 +1,8 @@
+use crate::{
+    board::BoardState,
+    movegen::generate::{generate_moves, is_square_attacked_by},
+};
 use std::time::Instant;
-use crate::{board::BoardState, movegen::movegen::{generate_moves, is_square_attacked_by}};
 
 pub fn perft(board_state: &mut BoardState, max_depth: u8) {
     for depth in 1..=max_depth {
@@ -33,7 +36,6 @@ pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
     }
     println!("Total moves: {}", total)
 }
-
 
 pub fn number_of_moves(board_state: &mut BoardState, depth: u8) -> u32 {
     if depth == 0 {

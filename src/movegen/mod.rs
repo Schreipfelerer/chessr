@@ -1,3 +1,3 @@
 pub mod magic; 
-pub mod movegen;
+pub mod generate;
 pub mod perft;
