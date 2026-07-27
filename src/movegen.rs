@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::{
-    board::{Board, BoardState, Color, Move, Piece, Sq64, Sq88, StateInfo},
+    board::{Board, BoardState, Color, Move, Piece, Sq64, StateInfo},
     magic::{get_bishop_moves, get_rook_moves},
 };
 use arrayvec::ArrayVec;
@@ -199,8 +199,8 @@ pub fn generate_castles(
         let g_sq = Sq64(from_square.0 + 2);
 
         let path_unoccupied = !board.is_occupied(f_sq) && !board.is_occupied(g_sq);
-        let path_safe = !is_square_attacked_by(from_square.to_sq88(), c.flip(), board)
-            && !is_square_attacked_by(f_sq.to_sq88(), c.flip(), board);
+        let path_safe = !is_square_attacked_by(from_square, c.flip(), board)
+            && !is_square_attacked_by(f_sq, c.flip(), board);
 
         if path_unoccupied && path_safe {
             moves.push(Move::new_flags(from_square, g_sq, 0x2));
@@ -215,8 +215,8 @@ pub fn generate_castles(
 
         let path_unoccupied =
             !board.is_occupied(d_sq) && !board.is_occupied(c_sq) && !board.is_occupied(b_sq);
-        let path_safe = !is_square_attacked_by(from_square.to_sq88(), c.flip(), board)
-            && !is_square_attacked_by(d_sq.to_sq88(), c.flip(), board);
+        let path_safe = !is_square_attacked_by(from_square, c.flip(), board)
+            && !is_square_attacked_by(d_sq, c.flip(), board);
 
         if path_unoccupied && path_safe {
             moves.push(Move::new_flags(from_square, c_sq, 0x3));
@@ -224,8 +224,7 @@ pub fn generate_castles(
     }
 }
 
-pub fn is_square_attacked_by(sq_0x88: Sq88, c: Color, board: &Board) -> bool {
-    let sq64 = sq_0x88.to_sq64();
+pub fn is_square_attacked_by(sq64: Sq64, c: Color, board: &Board) -> bool {
     let sq = sq64.0 as usize;
     if PAWN_ATTACKS[c.flip() as usize][sq] & board.get_piece_bitboard(c, Piece::Pawn) != 0 {
         return true;
@@ -263,7 +262,7 @@ pub fn number_of_moves(board_state: &mut BoardState, depth: u8) -> u32 {
     for m in moves {
         let undo = board_state.make_move(m);
         if !is_square_attacked_by(
-            board_state.board.find_king(color).to_sq88(),
+            board_state.board.find_king(color),
             other_color,
             &board_state.board,
         ) {
@@ -294,8 +293,7 @@ pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
         if !is_square_attacked_by(
             board_state
                 .board
-                .find_king(board_state.state_info.active_color().flip())
-                .to_sq88(),
+                .find_king(board_state.state_info.active_color().flip()),
             board_state.state_info.active_color(),
             &board_state.board,
         ) {

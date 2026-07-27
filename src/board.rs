@@ -644,9 +644,6 @@ impl fmt::Display for Move {
 pub struct Sq64(pub u8);
 impl Sq64 {
     #[inline(always)]
-    pub const fn to_sq88(self) -> Sq88 {
-        Sq88(self.0 + (self.0 & !7))
-    }
     pub fn from_notation(notation: &[u8]) -> Option<Self> {
         if notation.len() != 2 {
             return None;
@@ -669,23 +666,5 @@ impl fmt::Display for Sq64 {
             (b'a' + (self.0 & 7)) as char,
             (b'1' + (self.0 >> 3)) as char
         )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Sq88(pub u8);
-impl Sq88 {
-    #[inline(always)]
-    pub const fn is_on_board(self) -> bool {
-        (self.0 & 0x88) == 0
-    }
-
-    #[inline(always)]
-    pub const fn to_sq64(self) -> Sq64 {
-        Sq64((self.0 + (self.0 & 7)) >> 1)
-    }
-    #[inline(always)]
-    pub const fn step(self, offset: i8) -> Sq88 {
-        Sq88(((self.0 as i8).wrapping_add(offset)) as u8)
     }
 }

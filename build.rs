@@ -1,18 +1,17 @@
-use std::{
-    env,
-    fs::File,
-    io::Write,
-    path::Path,
-};
+mod magic_bitboards;
+mod magic_generator;
 
-mod generate_magic;
-use generate_magic::*;
-
+use std::{env, fs::File, io::Write, path::Path};
 use bytemuck::cast_slice;
+use crate::{
+    magic_bitboards::{BISHOP_MAGIC, ROOK_MAGIC},
+    magic_generator::{BISHOP_OFFSETS, ROOK_OFFSETS, compute_blockers, compute_magic},
+};
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=generate_magic.rs");
+    println!("cargo:rerun-if-changed=magic_bitboards.rs");
+    println!("cargo:rerun-if-changed=magic_generator.rs");
 
     let out_dir = env::var("OUT_DIR").unwrap();
 

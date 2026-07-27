@@ -1,6 +1,12 @@
-use crate::{magic::{
-    BISHOP_BLOCKERS, BISHOP_OFFSETS, ROOK_BLOCKERS, ROOK_OFFSETS, compute_sliding_attacks,
-}};
+#[path = "../magic.rs"]
+mod magic;
+use crate::{
+    magic::{BISHOP_BLOCKERS, ROOK_BLOCKERS},
+    magic_generator::{BISHOP_OFFSETS, ROOK_OFFSETS, compute_sliding_attacks},
+};
+
+#[path = "../../magic_generator.rs"]
+mod magic_generator;
 
 struct Xorshift64(u64);
 impl Xorshift64 {
@@ -64,7 +70,7 @@ pub fn find_magic_bishops() {
     let mut rng = Xorshift64(0x1234_5678_9abc_def0); // any nonzero seed
     print!("pub const BISHOP_MAGIC: [u64; 64] = [");
     for sq in 0..64 {
-        let magic = find_magic(sq, &mut rng, **BISHOP_BLOCKERS, &BISHOP_OFFSETS, 9);
+        let magic = find_magic(sq, &mut rng, *BISHOP_BLOCKERS, &BISHOP_OFFSETS, 9);
         print!("0x{:016X}, ", magic);
     }
     println!("];");
@@ -73,8 +79,13 @@ pub fn find_magic_rooks() {
     let mut rng = Xorshift64(0x1234_5678_9abc_def0); // any nonzero seed
     print!("pub const ROOK_MAGIC: [u64; 64] = [");
     for sq in 0..64 {
-        let magic = find_magic(sq, &mut rng, **ROOK_BLOCKERS, &ROOK_OFFSETS, 12);
+        let magic = find_magic(sq, &mut rng, *ROOK_BLOCKERS, &ROOK_OFFSETS, 12);
         print!("0x{:016X}, ", magic);
     }
     println!("];");
+}
+
+fn main() {
+    find_magic_bishops();
+    find_magic_rooks();
 }

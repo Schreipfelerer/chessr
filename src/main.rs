@@ -2,14 +2,13 @@ mod board;
 use board::BoardState;
 mod movegen;
 mod magic;
-mod find_magic;
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 use std::io::{self, BufRead};
 
 use crate::{
-    board::{Move, Undo}, find_magic::{find_magic_bishops, find_magic_rooks}, movegen::{generate_moves, is_square_attacked_by, perft, perft_devide}
+    board::{Move, Undo}, movegen::{generate_moves, is_square_attacked_by, perft, perft_devide}
 };
 
 fn main() {
@@ -58,8 +57,7 @@ fn main() {
                     if is_square_attacked_by(
                         game_state
                             .board
-                            .find_king(game_state.state_info.active_color().flip())
-                            .to_sq88(),
+                            .find_king(game_state.state_info.active_color().flip()),
                         game_state.state_info.active_color(),
                         &game_state.board,
                     ) {
@@ -110,12 +108,6 @@ fn main() {
                     undo = None;
                     println!("{}", game_state.board);
                 }
-            },
-            "magic_bishop" => {
-                find_magic_bishops();
-            },
-            "magic_rook" => {
-                find_magic_rooks();
             },
             "quit" | "exit" => break,
             _ => println!("Unknown command: {}", command),
