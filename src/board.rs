@@ -181,7 +181,7 @@ impl BoardState {
         })
     }
 
-    pub(crate) fn make_move(&mut self, m: Move) -> Undo {
+    pub fn make_move(&mut self, m: Move) -> Undo {
         let flags = m.flags();
         let from = m.source();
         let to = m.target();
@@ -311,7 +311,7 @@ impl BoardState {
         undo
     }
 
-    pub(crate) fn undo_move(&mut self, undo: Undo) {
+    pub fn undo_move(&mut self, undo: Undo) {
         let color = self.state_info.active_color();
         let prev_color = color.flip();
         let m = undo.r#move;

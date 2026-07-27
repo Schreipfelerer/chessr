@@ -1,12 +1,7 @@
-#[path = "../magic.rs"]
-mod magic;
-use crate::{
+use chessr::{
     magic::{BISHOP_BLOCKERS, ROOK_BLOCKERS},
     magic_generator::{BISHOP_OFFSETS, ROOK_OFFSETS, compute_sliding_attacks},
 };
-
-#[path = "../../magic_generator.rs"]
-mod magic_generator;
 
 struct Xorshift64(u64);
 impl Xorshift64 {

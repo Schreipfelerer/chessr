@@ -1,15 +1,11 @@
-mod board;
-use board::BoardState;
-mod movegen;
-mod magic;
-
-const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
 use std::io::{self, BufRead};
 
-use crate::{
-    board::{Move, Undo}, movegen::{generate_moves, is_square_attacked_by, perft, perft_devide}
+use chessr::{
+    board::{Move, Undo, BoardState},
+    movegen::{generate_moves, is_square_attacked_by, perft, perft_devide},
 };
+
+const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 fn main() {
     let stdin = io::stdin();
@@ -45,11 +41,12 @@ fn main() {
                     let mut matching = legal_moves
                         .iter()
                         .filter(|mov| mov.0 & 0xFFF == m.0 & 0xFFF);
-                    m = match matching.next() { // TODO differention between Promotions
+                    m = match matching.next() {
+                        // TODO differention between Promotions
                         None => {
                             println!("Move not legal {}", m);
                             continue;
-                        },
+                        }
                         Some(mov) => *mov,
                     };
 

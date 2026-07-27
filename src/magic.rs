@@ -1,10 +1,7 @@
-#[path = "../magic_bitboards.rs"]
-mod magic_bitboards;
 use crate::{
     board::Sq64,
-    magic::magic_bitboards::{BISHOP_MAGIC, ROOK_MAGIC},
+    magic_bitboards::{BISHOP_MAGIC, ROOK_MAGIC},
 };
-
 
 #[repr(align(8))]
 struct AlignedBytes<const N: usize>([u8; N]);
