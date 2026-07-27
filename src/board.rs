@@ -141,6 +141,10 @@ impl Board {
         let bb = self.pieces[color as usize][Piece::King as usize];
         Sq64(bb.trailing_zeros() as u8)
     }
+
+    pub fn get_friendly_occupancy(&self, c: Color) -> u64 {
+        self.occupancy[c as usize]
+    }
 }
 
 impl fmt::Display for Board {

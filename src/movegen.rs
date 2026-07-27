@@ -9,6 +9,30 @@ pub const BISHOP_OFFSETS: [i8; 4] = [15, 17, -15, -17];
 pub const QUEEN_OFFSETS: [i8; 8] = [1, -1, 16, -16, 15, 17, -15, -17];
 pub const KING_OFFSETS: [i8; 8] = [1, -1, 16, -16, 15, 17, -15, -17];
 pub const KNIGHT_OFFSETS: [i8; 8] = [31, 33, 18, 14, -31, -33, -18, -14];
+pub const KNIGHT_ATTACKS: [u64; 64] = compute_attacks(&KNIGHT_OFFSETS);
+pub const KING_ATTACKS: [u64; 64] = compute_attacks(&KING_OFFSETS);
+
+const fn compute_attacks(offsets: &[i8; 8]) -> [u64; 64] {
+    let mut table = [0u64; 64];
+    let mut sq = 0u8;
+    while sq < 64 {
+        let from_0x88 = sq + (sq & !7); // same as Sq64::to_sq88
+        let mut bb = 0u64;
+        let mut i = 0;
+        while i < 8 {
+            let offset = offsets[i];
+            let to_0x88 = (from_0x88 as i8).wrapping_add(offset) as u8;
+            if to_0x88 & 0x88 == 0 {
+                let to_64 = (to_0x88 + (to_0x88 & 7)) >> 1; // same as Sq88::to_sq64
+                bb |= 1u64 << to_64;
+            }
+            i += 1;
+        }
+        table[sq as usize] = bb;
+        sq += 1;
+    }
+    table
+}
 
 pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
     let board = &board_state.board;
@@ -33,13 +57,9 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
                     &mut moves,
                     state_info,
                 ),
-                Piece::Knight => generate_direct_moves(
-                    board,
-                    from_square_0x88,
-                    &KNIGHT_OFFSETS,
-                    color,
-                    &mut moves,
-                ),
+                Piece::Knight => {
+                    generate_direct_moves(board, from_sq, KNIGHT_ATTACKS, color, &mut moves)
+                }
                 Piece::Bishop => generate_sliding_moves(
                     board,
                     from_square_0x88,
@@ -62,13 +82,7 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
                     &mut moves,
                 ),
                 Piece::King => {
-                    generate_direct_moves(
-                        board,
-                        from_square_0x88,
-                        &KING_OFFSETS,
-                        color,
-                        &mut moves,
-                    );
+                    generate_direct_moves(board, from_sq, KING_ATTACKS, color, &mut moves);
                     generate_castles(board, from_sq, color, &mut moves, state_info);
                 }
             }
@@ -105,24 +119,21 @@ pub fn generate_sliding_moves(
 
 pub fn generate_direct_moves(
     board: &Board,
-    from_sq: Sq88,
-    offsets: &[i8],
+    from_sq: Sq64,
+    attacks: [u64; 64],
     c: Color,
     moves: &mut ArrayVec<Move, 256>,
 ) {
-    for &offset in offsets {
-        let to_sq = from_sq.step(offset);
+    let mut bb = attacks[from_sq.0 as usize] & !board.get_friendly_occupancy(c);
 
-        if !to_sq.is_on_board() {
-            continue;
-        }
-        let target_square = to_sq.to_sq64();
-        if board.is_occupied(target_square) {
-            if !board.is_occupied_firendly(target_square, c) {
-                moves.push(Move::new_flags(from_sq.to_sq64(), target_square, 0x4));
-            }
+    while bb != 0 {
+        let sq = bb.trailing_zeros() as u8;
+        bb &= bb - 1; // clear lsb
+        let to_sq = Sq64(sq);
+        if board.is_occupied_enemy(to_sq, c) {
+            moves.push(Move::new_flags(from_sq, to_sq, 0x4));
         } else {
-            moves.push(Move::new(from_sq.to_sq64(), target_square));
+            moves.push(Move::new(from_sq, to_sq));
         }
     }
 }
@@ -238,6 +249,7 @@ pub fn generate_castles(
 }
 
 pub fn is_square_attacked_by(sq_0x88: Sq88, c: Color, board: &Board) -> bool {
+    let sq = sq_0x88.to_sq64();
     for po in [15, 17] {
         let nsq = match c {
             Color::White => sq_0x88.step(-po),
@@ -249,21 +261,11 @@ pub fn is_square_attacked_by(sq_0x88: Sq88, c: Color, board: &Board) -> bool {
             }
         }
     }
-    for no in KNIGHT_OFFSETS {
-        let nsq = sq_0x88.step(no);
-        if nsq.is_on_board() {
-            if board.is_piece(nsq.to_sq64(), c, Piece::Knight) {
-                return true;
-            }
-        }
+    if KNIGHT_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(c, Piece::Knight) != 0 {
+        return true;
     }
-    for ko in KING_OFFSETS {
-        let nsq = sq_0x88.step(ko);
-        if nsq.is_on_board() {
-            if board.is_piece(nsq.to_sq64(), c, Piece::King) {
-                return true;
-            }
-        }
+    if KING_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(c, Piece::King) != 0 {
+        return true;
     }
     for bo in BISHOP_OFFSETS {
         let mut nsq = sq_0x88.step(bo);
