@@ -149,6 +149,10 @@ impl Board {
     pub fn get_enemy_occupancy(&self, c: Color) -> u64 {
         self.occupancy[c.flip() as usize]
     }
+
+    pub fn get_occupany(&self) -> u64 {
+        self.occupancy[2]
+    }
 }
 
 impl fmt::Display for Board {
@@ -647,7 +651,7 @@ impl fmt::Display for Move {
 pub struct Sq64(pub u8);
 impl Sq64 {
     #[inline(always)]
-    pub fn to_sq88(self) -> Sq88 {
+    pub const fn to_sq88(self) -> Sq88 {
         Sq88(self.0 + (self.0 & !7))
     }
     pub fn from_notation(notation: &[u8]) -> Option<Self> {
@@ -679,16 +683,16 @@ impl fmt::Display for Sq64 {
 pub struct Sq88(pub u8);
 impl Sq88 {
     #[inline(always)]
-    pub fn is_on_board(self) -> bool {
+    pub const fn is_on_board(self) -> bool {
         (self.0 & 0x88) == 0
     }
 
     #[inline(always)]
-    pub fn to_sq64(self) -> Sq64 {
+    pub const fn to_sq64(self) -> Sq64 {
         Sq64((self.0 + (self.0 & 7)) >> 1)
     }
     #[inline(always)]
-    pub fn step(self, offset: i8) -> Sq88 {
+    pub const fn step(self, offset: i8) -> Sq88 {
         Sq88(((self.0 as i8).wrapping_add(offset)) as u8)
     }
 }
