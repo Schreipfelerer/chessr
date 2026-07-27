@@ -1,5 +1,5 @@
 use chessr::{
-    magic::{BISHOP_BLOCKERS, ROOK_BLOCKERS},
+    movegen::magic::{BISHOP_BLOCKERS, ROOK_BLOCKERS},
     magic_generator::{BISHOP_OFFSETS, ROOK_OFFSETS, compute_sliding_attacks},
 };
 

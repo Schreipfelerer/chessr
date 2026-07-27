@@ -1,8 +1,8 @@
 use std::io::{self, BufRead};
 
 use chessr::{
-    board::{Move, Undo, BoardState},
-    movegen::{generate_moves, is_square_attacked_by, perft, perft_devide},
+    board::{BoardState, Move, Undo},
+    movegen::{movegen::{generate_moves, is_square_attacked_by}, perft::{perft, perft_devide}},
 };
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

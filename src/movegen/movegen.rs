@@ -1,8 +1,6 @@
-use std::time::Instant;
-
 use crate::{
     board::{Board, BoardState, Color, Move, MoveFlag, Piece, Sq64, StateInfo},
-    magic::{get_bishop_moves, get_rook_moves},
+    movegen::magic::{get_bishop_moves, get_rook_moves},
 };
 use arrayvec::ArrayVec;
 
@@ -43,22 +41,21 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
     let mut moves = ArrayVec::new();
 
     for piece in Piece::ALL {
-        let mut bb = board.get_piece_bitboard(color, piece);
-        while bb != 0 {
-            let sq = bb.trailing_zeros() as u8;
-            bb &= bb - 1; // clear lsb
-            let from_sq = Sq64(sq);
-            // dispatch to the right generator
+        for from_sq in BitboardIter(board.get_piece_bitboard(color, piece)) {
             match piece {
                 Piece::Pawn => generate_pawn_moves(board, from_sq, color, &mut moves, state_info),
                 Piece::Knight => {
                     generate_direct_moves(board, from_sq, KNIGHT_ATTACKS, color, &mut moves)
                 }
-                Piece::Bishop => generate_bishop_moves(board, from_sq, color, &mut moves),
-                Piece::Rook => generate_rook_moves(board, from_sq, color, &mut moves),
+                Piece::Bishop => {
+                    generate_sliding_moves(board, from_sq, color, &mut moves, Piece::Bishop)
+                }
+                Piece::Rook => {
+                    generate_sliding_moves(board, from_sq, color, &mut moves, Piece::Rook)
+                }
                 Piece::Queen => {
-                    generate_bishop_moves(board, from_sq, color, &mut moves);
-                    generate_rook_moves(board, from_sq, color, &mut moves);
+                    generate_sliding_moves(board, from_sq, color, &mut moves, Piece::Bishop);
+                    generate_sliding_moves(board, from_sq, color, &mut moves, Piece::Rook);
                 }
                 Piece::King => {
                     generate_direct_moves(board, from_sq, KING_ATTACKS, color, &mut moves);
@@ -71,34 +68,26 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
     moves
 }
 
-pub fn generate_bishop_moves(board: &Board, sq: Sq64, c: Color, moves: &mut ArrayVec<Move, 256>) {
-    let bb = get_bishop_moves(sq, board.get_occupany());
-    let mut cbb = bb & board.get_enemy_occupancy(c);
-    let mut mbb = bb & !board.get_occupany();
-    while cbb != 0 {
-        let tsq = cbb.trailing_zeros();
-        moves.push(Move::new_flags(sq, Sq64(tsq as u8), MoveFlag::Capture));
-        cbb &= cbb - 1
+pub fn generate_sliding_moves(
+    board: &Board,
+    sq: Sq64,
+    c: Color,
+    moves: &mut ArrayVec<Move, 256>,
+    p: Piece,
+) {
+    let bb = match p {
+        Piece::Rook => get_rook_moves(sq, board.get_occupany()),
+        Piece::Bishop => get_bishop_moves(sq, board.get_occupany()),
+        _ => unreachable!(),
+    };
+    let captures = bb & board.get_enemy_occupancy(c);
+    for tsq in BitboardIter(captures) {
+        moves.push(Move::new_flags(sq, tsq, MoveFlag::Capture));
     }
-    while mbb != 0 {
-        let tsq = mbb.trailing_zeros();
-        moves.push(Move::new(sq, Sq64(tsq as u8)));
-        mbb &= mbb - 1
-    }
-}
-pub fn generate_rook_moves(board: &Board, sq: Sq64, c: Color, moves: &mut ArrayVec<Move, 256>) {
-    let bb = get_rook_moves(sq, board.get_occupany());
-    let mut cbb = bb & board.get_enemy_occupancy(c);
-    let mut mbb = bb & !board.get_occupany();
-    while cbb != 0 {
-        let tsq = cbb.trailing_zeros();
-        moves.push(Move::new_flags(sq, Sq64(tsq as u8), MoveFlag::Capture));
-        cbb &= cbb - 1
-    }
-    while mbb != 0 {
-        let tsq = mbb.trailing_zeros();
-        moves.push(Move::new(sq, Sq64(tsq as u8)));
-        mbb &= mbb - 1
+
+    let quiets = bb & !board.get_occupany();
+    for tsq in BitboardIter(quiets) {
+        moves.push(Move::new(sq, tsq));
     }
 }
 
@@ -109,12 +98,9 @@ pub fn generate_direct_moves(
     c: Color,
     moves: &mut ArrayVec<Move, 256>,
 ) {
-    let mut bb = attacks[from_sq.0 as usize] & !board.get_friendly_occupancy(c);
+    let bb = attacks[from_sq.0 as usize] & !board.get_friendly_occupancy(c);
 
-    while bb != 0 {
-        let sq = bb.trailing_zeros() as u8;
-        bb &= bb - 1; // clear lsb
-        let to_sq = Sq64(sq);
+    for to_sq in BitboardIter(bb) {
         if board.is_occupied_enemy(to_sq, c) {
             moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::Capture));
         } else {
@@ -166,12 +152,7 @@ pub fn generate_pawn_moves(
     }
     // Taking
     let pa_bb = PAWN_ATTACKS[c as usize][from_square.0 as usize];
-    let mut bb = pa_bb & board.get_enemy_occupancy(c);
-    while bb != 0 {
-        let sq = bb.trailing_zeros() as u8;
-        bb &= bb - 1; // clear lsb
-        let to_sq = Sq64(sq);
-        //Can Take
+    for to_sq in BitboardIter(pa_bb & board.get_enemy_occupancy(c)) {
         if to_sq.0 >> 3 == 7 || to_sq.0 >> 3 == 0 {
             //Promotion Capture
             for piece in Piece::PROMOTABLE {
@@ -263,64 +244,25 @@ pub fn is_square_attacked_by(sq64: Sq64, c: Color, board: &Board) -> bool {
     false
 }
 
-pub fn number_of_moves(board_state: &mut BoardState, depth: u8) -> u32 {
-    if depth == 0 {
-        return 1;
-    }
-    let mut move_nunmber = 0;
-    let color = board_state.state_info.active_color();
-    let other_color = color.flip();
-    let moves = generate_moves(board_state);
-    for m in moves {
-        let undo = board_state.make_move(m);
-        if !is_square_attacked_by(
-            board_state.board.find_king(color),
-            other_color,
-            &board_state.board,
-        ) {
-            move_nunmber += number_of_moves(board_state, depth - 1);
+struct BitboardIter(u64);
+impl Iterator for BitboardIter {
+    type Item = Sq64;
+    #[inline(always)]
+    fn next(&mut self) -> Option<Sq64> {
+        if self.0 == 0 {
+            return None;
         }
-        board_state.undo_move(undo);
-    }
-    move_nunmber
-}
-
-pub fn perft(board_state: &mut BoardState, max_depth: u8) {
-    for depth in 1..=max_depth {
-        let start = Instant::now();
-        let moves = number_of_moves(board_state, depth);
-        let duration = start.elapsed();
-
-        println!(
-            "perft with depth {}: {:?}, moves: {}",
-            depth, duration, moves
-        );
+        let sq = self.0.trailing_zeros() as u8;
+        self.0 &= self.0 - 1;
+        Some(Sq64(sq))
     }
 }
 
-pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
-    let mut total = 0;
-    for m in generate_moves(board_state) {
-        let undo = board_state.make_move(m);
-        if !is_square_attacked_by(
-            board_state
-                .board
-                .find_king(board_state.state_info.active_color().flip()),
-            board_state.state_info.active_color(),
-            &board_state.board,
-        ) {
-            let moves = number_of_moves(board_state, depth - 1);
-            println!("  {}: {} moves", m, moves);
-            total += moves;
-        }
-        board_state.undo_move(undo);
-    }
-    println!("Total moves: {}", total)
-}
+
 
 #[cfg(test)]
 mod perft_tests {
-    use crate::{board::BoardState, movegen::number_of_moves};
+    use crate::{board::BoardState, movegen::perft::number_of_moves};
 
     #[test]
     fn start_pos() {
