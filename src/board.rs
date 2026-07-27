@@ -66,17 +66,10 @@ impl Board {
     }
     pub fn is_occupied(&self, sq: Sq64) -> bool {
         self.occupancy[2] >> sq.0 & 1 == 1
-    }
-    pub fn is_occupied_firendly(&self, sq: Sq64, color: Color) -> bool {
-        self.occupancy[color as usize] >> sq.0 & 1 == 1
-    }
+    } 
     pub fn is_occupied_enemy(&self, sq: Sq64, color: Color) -> bool {
         self.occupancy[color.flip() as usize] >> sq.0 & 1 == 1
     }
-    pub fn is_piece(&self, sq: Sq64, color: Color, piece: Piece) -> bool {
-        self.pieces[color as usize][piece as usize] >> sq.0 & 1 == 1
-    }
-
     pub fn remove_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
         let mask: u64 = 0x1 << sq.0;
         self.pieces[color as usize][piece as usize] ^= mask;

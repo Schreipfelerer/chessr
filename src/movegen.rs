@@ -2,12 +2,11 @@ use std::time::Instant;
 
 use crate::{
     board::{Board, BoardState, Color, Move, Piece, Sq64, Sq88, StateInfo},
-    magic::get_bishop_moves,
+    magic::{get_bishop_moves, get_rook_moves},
 };
 use arrayvec::ArrayVec;
 
 // Direction offsets for sliding pieces
-pub const ROOK_OFFSETS: [i8; 4] = [1, -1, 16, -16];
 pub const KING_OFFSETS: [i8; 8] = [1, -1, 16, -16, 15, 17, -15, -17];
 pub const KNIGHT_OFFSETS: [i8; 8] = [31, 33, 18, 14, -31, -33, -18, -14];
 pub const KNIGHT_ATTACKS: [u64; 64] = compute_attacks(&KNIGHT_OFFSETS);
@@ -49,7 +48,6 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
             let sq = bb.trailing_zeros() as u8;
             bb &= bb - 1; // clear lsb
             let from_sq = Sq64(sq);
-            let from_square_0x88 = from_sq.to_sq88();
             // dispatch to the right generator
             match piece {
                 Piece::Pawn => generate_pawn_moves(board, from_sq, color, &mut moves, state_info),
@@ -57,22 +55,10 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
                     generate_direct_moves(board, from_sq, KNIGHT_ATTACKS, color, &mut moves)
                 }
                 Piece::Bishop => generate_bishop_moves(board, from_sq, color, &mut moves),
-                Piece::Rook => generate_sliding_moves(
-                    board,
-                    from_square_0x88,
-                    &ROOK_OFFSETS,
-                    color,
-                    &mut moves,
-                ),
+                Piece::Rook => generate_rook_moves(board, from_sq, color, &mut moves),
                 Piece::Queen => {
-                    generate_sliding_moves(
-                        board,
-                        from_square_0x88,
-                        &ROOK_OFFSETS,
-                        color,
-                        &mut moves,
-                    );
                     generate_bishop_moves(board, from_sq, color, &mut moves);
+                    generate_rook_moves(board, from_sq, color, &mut moves);
                 }
                 Piece::King => {
                     generate_direct_moves(board, from_sq, KING_ATTACKS, color, &mut moves);
@@ -100,29 +86,19 @@ pub fn generate_bishop_moves(board: &Board, sq: Sq64, c: Color, moves: &mut Arra
         mbb &= mbb - 1
     }
 }
-
-pub fn generate_sliding_moves(
-    board: &Board,
-    from_sq: Sq88,
-    offsets: &[i8],
-    c: Color,
-    moves: &mut ArrayVec<Move, 256>,
-) {
-    for &offset in offsets {
-        let mut to_sq = from_sq.step(offset);
-
-        while to_sq.is_on_board() {
-            let target_square = to_sq.to_sq64();
-            if board.is_occupied(target_square) {
-                if !board.is_occupied_firendly(target_square, c) {
-                    moves.push(Move::new_flags(from_sq.to_sq64(), target_square, 0x4));
-                }
-                break;
-            }
-            moves.push(Move::new(from_sq.to_sq64(), target_square));
-
-            to_sq = to_sq.step(offset)
-        }
+pub fn generate_rook_moves(board: &Board, sq: Sq64, c: Color, moves: &mut ArrayVec<Move, 256>) {
+    let bb = get_rook_moves(sq, board.get_occupany());
+    let mut cbb = bb & board.get_enemy_occupancy(c);
+    let mut mbb = bb & !board.get_occupany();
+    while cbb != 0 {
+        let tsq = cbb.trailing_zeros();
+        moves.push(Move::new_flags(sq, Sq64(tsq as u8), 0x4));
+        cbb &= cbb - 1
+    }
+    while mbb != 0 {
+        let tsq = mbb.trailing_zeros();
+        moves.push(Move::new(sq, Sq64(tsq as u8)));
+        mbb &= mbb - 1
     }
 }
 
@@ -267,20 +243,11 @@ pub fn is_square_attacked_by(sq_0x88: Sq88, c: Color, board: &Board) -> bool {
     {
         return true;
     }
-
-    for ro in ROOK_OFFSETS {
-        let mut nsq = sq_0x88.step(ro);
-        while nsq.is_on_board() {
-            if board.is_piece(nsq.to_sq64(), c, Piece::Rook)
-                || board.is_piece(nsq.to_sq64(), c, Piece::Queen)
-            {
-                return true;
-            }
-            if board.is_occupied(nsq.to_sq64()) {
-                break;
-            }
-            nsq = nsq.step(ro);
-        }
+    if get_rook_moves(sq64, board.get_occupany())
+        & (board.get_piece_bitboard(c, Piece::Rook) | board.get_piece_bitboard(c, Piece::Queen))
+        != 0
+    {
+        return true;
     }
     false
 }

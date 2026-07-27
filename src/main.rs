@@ -9,7 +9,7 @@ const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 
 use std::io::{self, BufRead};
 
 use crate::{
-    board::{Move, Undo}, find_magic::find_magic_bishops, movegen::{generate_moves, is_square_attacked_by, perft, perft_devide}
+    board::{Move, Undo}, find_magic::{find_magic_bishops, find_magic_rooks}, movegen::{generate_moves, is_square_attacked_by, perft, perft_devide}
 };
 
 fn main() {
@@ -113,7 +113,10 @@ fn main() {
             },
             "magic_bishop" => {
                 find_magic_bishops();
-            }
+            },
+            "magic_rook" => {
+                find_magic_rooks();
+            },
             "quit" | "exit" => break,
             _ => println!("Unknown command: {}", command),
         }
