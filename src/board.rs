@@ -66,7 +66,7 @@ impl Board {
     }
     pub fn is_occupied(&self, sq: Sq64) -> bool {
         self.occupancy[2] >> sq.0 & 1 == 1
-    } 
+    }
     pub fn is_occupied_enemy(&self, sq: Sq64, color: Color) -> bool {
         self.occupancy[color.flip() as usize] >> sq.0 & 1 == 1
     }
@@ -196,54 +196,30 @@ impl BoardState {
             self.state_info.remove_castle_rights(color);
         }
         if piece == Piece::Rook {
-            //Check if in corner
-            if color == Color::White && from.0 == 0 {
-                self.state_info
-                    .remove_castle_rights_side(Color::White, false);
-            }
-            //Check if in corner
-            if color == Color::White && from.0 == 7 {
-                self.state_info
-                    .remove_castle_rights_side(Color::White, true);
-            }
-            //Check if in corner
-            if color == Color::Black && from.0 == 56 {
-                self.state_info
-                    .remove_castle_rights_side(Color::Black, false);
-            }
-            //Check if in corner
-            if color == Color::Black && from.0 == 63 {
-                self.state_info
-                    .remove_castle_rights_side(Color::Black, true);
-            }
+            self.state_info.clear_corner_castle_rights(from); // Remove Castle Rights
         }
 
-        if flags == 0 {
+        if flags == MoveFlag::Quiet {
             self.board.place_piece(to, color, piece);
         }
-        if flags == 1 {
-            // Pawn double push
+        if flags == MoveFlag::DoublePawnPush {
             self.board.place_piece(to, color, piece);
             self.state_info.ep_square = match color {
                 Color::White => Some(Sq64(from.0 + 8)),
                 Color::Black => Some(Sq64(from.0 - 8)),
             }
         }
-        if flags == 2 {
-            //Kingside castle
+        if flags == MoveFlag::CastleKingside {
             self.board.place_piece(to, color, Piece::King);
             self.board.place_piece(Sq64(from.0 + 1), color, Piece::Rook);
             self.board.remove_piece(Sq64(to.0 + 1), color, Piece::Rook);
         }
-        if flags == 3 {
-            //Queenside castle
+        if flags == MoveFlag::CastleQueenside {
             self.board.place_piece(to, color, Piece::King);
             self.board.place_piece(Sq64(from.0 - 1), color, Piece::Rook);
             self.board.remove_piece(Sq64(to.0 - 2), color, Piece::Rook);
         }
-
-        //EP
-        if flags == 5 {
+        if flags == MoveFlag::EnPassant {
             self.board.place_piece(to, color, Piece::Pawn);
             undo.captured_piece = Some(Piece::Pawn);
             match color {
@@ -254,50 +230,23 @@ impl BoardState {
                     .board
                     .remove_piece(Sq64(to.0 + 8), Color::White, Piece::Pawn),
             }
-        } else if flags & 4 == 4 {
+        } else if flags.is_capture() {
             let cp = self.board.get_piece_at(to);
             undo.captured_piece = Some(cp);
             self.board.remove_piece(to, color.flip(), cp);
-            //Check if in corner
-            if color == Color::White && to.0 == 56 {
-                self.state_info
-                    .remove_castle_rights_side(Color::Black, false);
-            }
-            //Check if in corner
-            if color == Color::White && to.0 == 63 {
-                self.state_info
-                    .remove_castle_rights_side(Color::Black, true);
-            }
-            //Check if in corner
-            if color == Color::Black && to.0 == 0 {
-                self.state_info
-                    .remove_castle_rights_side(Color::White, false);
-            }
-            //Check if in corner
-            if color == Color::Black && to.0 == 7 {
-                self.state_info
-                    .remove_castle_rights_side(Color::White, true);
-            }
+            self.state_info.clear_corner_castle_rights(to); // Remove Castle Rights
         }
 
-        //Captures
-        if flags == 4 {
+        if flags == MoveFlag::Capture {
             self.board.place_piece(to, color, piece);
         }
 
-        // Promotions
-        if flags & 8 == 8 {
-            let new_piece = match flags & 3 {
-                0 => Piece::Knight,
-                1 => Piece::Bishop,
-                2 => Piece::Rook,
-                3 => Piece::Queen,
-                _ => panic!("Non-Defined Flag"),
-            };
+        if flags.is_promotion() {
+            let new_piece = flags.promoted_piece();
             self.board.place_piece(to, color, new_piece);
         }
 
-        if piece == Piece::Pawn || flags & 4 == 4 {
+        if piece == Piece::Pawn || flags.is_capture() {
             self.state_info.half_move_clock = 0
         } else {
             self.state_info.half_move_clock += 1
@@ -323,7 +272,7 @@ impl BoardState {
         self.board.remove_piece(to, prev_color, piece);
 
         if let Some(cp) = undo.captured_piece {
-            if flag == 5 {
+            if flag == MoveFlag::EnPassant{
                 let csq = Sq64(match color {
                     Color::White => to.0 + 8,
                     Color::Black => to.0 - 8,
@@ -334,22 +283,19 @@ impl BoardState {
             }
         }
 
-        if flag & 8 == 8 {
-            // Promotion
+        if flag.is_promotion(){
             self.board.place_piece(from, prev_color, Piece::Pawn);
         } else {
             self.board.place_piece(from, prev_color, piece);
         }
 
-        if flag == 2 {
-            // Kingside castle
+        if flag == MoveFlag::CastleKingside {
             self.board
                 .remove_piece(Sq64(to.0 - 1), prev_color, Piece::Rook);
             self.board
                 .place_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
         }
-        if flag == 3 {
-            // Queen castle
+        if flag == MoveFlag::CastleQueenside {
             self.board
                 .remove_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
             self.board
@@ -473,24 +419,22 @@ impl StateInfo {
         }
         self.has_castle_rights >> offset & 0x1 == 1
     }
-    pub fn remove_castle_rights_side(&mut self, color: Color, is_short: bool) {
-        let mut offset = match color {
-            Color::Black => 0,
-            Color::White => 2,
+    pub fn clear_corner_castle_rights(&mut self, sq: Sq64) {
+        let mask = match sq.0 {
+            0 => 0b0100,  // White queenside rook home
+            7 => 0b1000,  // White kingside rook home
+            56 => 0b0001, // Black queenside rook home
+            63 => 0b0010, // Black kingside rook home
+            _ => 0,
         };
-        if is_short {
-            offset += 1;
-        }
-        let mask = !1_u8.wrapping_shl(offset);
-        self.has_castle_rights &= mask
+        self.has_castle_rights &= !mask;
     }
     pub fn remove_castle_rights(&mut self, color: Color) {
         let offset = match color {
             Color::Black => 0,
             Color::White => 2,
         };
-        let mask = !3_u8.wrapping_shl(offset);
-        self.has_castle_rights &= mask
+        self.has_castle_rights &= !(0b0011 << offset)
     }
 }
 
@@ -563,13 +507,13 @@ impl Move {
     }
 
     #[inline(always)]
-    pub fn new_flags(from: Sq64, to: Sq64, flags: u8) -> Self {
+    pub fn new_flags(from: Sq64, to: Sq64, flags: MoveFlag) -> Self {
         Move((from.0 as u16) | ((to.0 as u16) << 6) | ((flags as u16) << 12))
     }
 
     #[inline(always)]
-    pub fn flags(self) -> u8 {
-        (self.0 >> 12) as u8
+    pub fn flags(self) -> MoveFlag {
+        unsafe { std::mem::transmute::<u8, MoveFlag>((self.0 >> 12) as u8) }
     }
     #[inline(always)]
     pub fn target(self) -> Sq64 {
@@ -623,15 +567,72 @@ impl Move {
     }
 }
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoveFlag {
+    Quiet = 0,
+    DoublePawnPush = 1,
+    CastleKingside = 2,
+    CastleQueenside = 3,
+    Capture = 4,
+    EnPassant = 5,
+    PromoKnight = 8,
+    PromoBishop = 9,
+    PromoRook = 10,
+    PromoQueen = 11,
+    PromoKnightCapture = 12,
+    PromoBishopCapture = 13,
+    PromoRookCapture = 14,
+    PromoQueenCapture = 15,
+}
+
+impl MoveFlag {
+    pub const fn new_promotion(p: Piece) -> Self {
+        match p {
+            Piece::Knight => MoveFlag::PromoKnight,
+            Piece::Bishop => MoveFlag::PromoBishop, 
+            Piece::Rook => MoveFlag::PromoRook, 
+            Piece::Queen => MoveFlag::PromoQueen, 
+            _ => unreachable!(),
+        }
+    }
+    pub const fn new_promotion_capture(p: Piece) -> Self {
+        match p {
+            Piece::Knight => MoveFlag::PromoKnightCapture,
+            Piece::Bishop => MoveFlag::PromoBishopCapture, 
+            Piece::Rook => MoveFlag::PromoRookCapture, 
+            Piece::Queen => MoveFlag::PromoQueenCapture, 
+            _ => unreachable!(),
+        }
+    }
+    #[inline(always)]
+    pub const fn is_promotion(self) -> bool {
+        (self as u8) & 8 != 0
+    }
+    #[inline(always)]
+    pub const fn is_capture(self) -> bool {
+        (self as u8) & 4 != 0
+    }
+    pub const fn promoted_piece(self) -> Piece {
+        match (self as u8) & 3 {
+            0 => Piece::Knight,
+            1 => Piece::Bishop,
+            2 => Piece::Rook,
+            3 => Piece::Queen,
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.source(), self.target())?;
-        if self.flags() & 8 == 8 {
-            let promo_string = match self.flags() & 3 {
-                0 => "n",
-                1 => "b",
-                2 => "r",
-                3 => "q",
+        if self.flags().is_capture() {
+            let promo_string = match self.flags().promoted_piece() {
+                Piece::Knight => "n",
+                Piece::Bishop => "b",
+                Piece::Rook => "r",
+                Piece::Queen => "q",
                 _ => unreachable!(),
             };
             write!(f, "-{}", promo_string)?;

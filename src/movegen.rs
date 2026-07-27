@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::{
-    board::{Board, BoardState, Color, Move, Piece, Sq64, StateInfo},
+    board::{Board, BoardState, Color, Move, MoveFlag, Piece, Sq64, StateInfo},
     magic::{get_bishop_moves, get_rook_moves},
 };
 use arrayvec::ArrayVec;
@@ -77,7 +77,7 @@ pub fn generate_bishop_moves(board: &Board, sq: Sq64, c: Color, moves: &mut Arra
     let mut mbb = bb & !board.get_occupany();
     while cbb != 0 {
         let tsq = cbb.trailing_zeros();
-        moves.push(Move::new_flags(sq, Sq64(tsq as u8), 0x4));
+        moves.push(Move::new_flags(sq, Sq64(tsq as u8), MoveFlag::Capture));
         cbb &= cbb - 1
     }
     while mbb != 0 {
@@ -92,7 +92,7 @@ pub fn generate_rook_moves(board: &Board, sq: Sq64, c: Color, moves: &mut ArrayV
     let mut mbb = bb & !board.get_occupany();
     while cbb != 0 {
         let tsq = cbb.trailing_zeros();
-        moves.push(Move::new_flags(sq, Sq64(tsq as u8), 0x4));
+        moves.push(Move::new_flags(sq, Sq64(tsq as u8), MoveFlag::Capture));
         cbb &= cbb - 1
     }
     while mbb != 0 {
@@ -116,7 +116,7 @@ pub fn generate_direct_moves(
         bb &= bb - 1; // clear lsb
         let to_sq = Sq64(sq);
         if board.is_occupied_enemy(to_sq, c) {
-            moves.push(Move::new_flags(from_sq, to_sq, 0x4));
+            moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::Capture));
         } else {
             moves.push(Move::new(from_sq, to_sq));
         }
@@ -142,7 +142,7 @@ pub fn generate_pawn_moves(
                 moves.push(Move::new_flags(
                     from_square,
                     target_square,
-                    8 + piece as u8 - 1,
+                    MoveFlag::new_promotion(piece),
                 ));
             }
         } else {
@@ -155,7 +155,11 @@ pub fn generate_pawn_moves(
                     Color::Black => from_square.0 - 16,
                 });
                 if !board.is_occupied(target_square) {
-                    moves.push(Move::new_flags(from_square, target_square, 1));
+                    moves.push(Move::new_flags(
+                        from_square,
+                        target_square,
+                        MoveFlag::DoublePawnPush,
+                    ));
                 }
             }
         }
@@ -171,17 +175,21 @@ pub fn generate_pawn_moves(
         if to_sq.0 >> 3 == 7 || to_sq.0 >> 3 == 0 {
             //Promotion Capture
             for piece in Piece::PROMOTABLE {
-                moves.push(Move::new_flags(from_square, to_sq, 0xC + piece as u8 - 1));
+                moves.push(Move::new_flags(
+                    from_square,
+                    to_sq,
+                    MoveFlag::new_promotion_capture(piece),
+                ));
             }
         } else {
             //Capture
-            moves.push(Move::new_flags(from_square, to_sq, 0x4));
+            moves.push(Move::new_flags(from_square, to_sq, MoveFlag::Capture));
         }
     }
     // EP
     if let Some(ep_sq) = state_info.ep_square {
         if pa_bb & (1 << ep_sq.0) != 0 {
-            moves.push(Move::new_flags(from_square, ep_sq, 0x5));
+            moves.push(Move::new_flags(from_square, ep_sq, MoveFlag::EnPassant));
         }
     }
 }
@@ -203,7 +211,7 @@ pub fn generate_castles(
             && !is_square_attacked_by(f_sq, c.flip(), board);
 
         if path_unoccupied && path_safe {
-            moves.push(Move::new_flags(from_square, g_sq, 0x2));
+            moves.push(Move::new_flags(from_square, g_sq, MoveFlag::CastleKingside));
         }
     }
 
@@ -219,7 +227,11 @@ pub fn generate_castles(
             && !is_square_attacked_by(d_sq, c.flip(), board);
 
         if path_unoccupied && path_safe {
-            moves.push(Move::new_flags(from_square, c_sq, 0x3));
+            moves.push(Move::new_flags(
+                from_square,
+                c_sq,
+                MoveFlag::CastleQueenside,
+            ));
         }
     }
 }
