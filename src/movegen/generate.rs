@@ -306,10 +306,14 @@ pub fn generate_pawn_moves(
     }
     // EP
     if let Some(ep_sq) = state_info.ep_square {
-        if pa_bb & (1 << ep_sq.0) & valid_destinations != 0 {
+        if pa_bb & (3 << ep_sq.0) & valid_destinations != 0 {
+            // TODO if black pawn is attacking king
+            // TODO if black pawn is "pinned"
+
             // Check for double pin EdgeCase
             let king_sq = board.find_king(c);
-            if king_sq.0 & 0x38 == from_square.0 & 0x38 { //Prefilter if king is in smae row
+            if king_sq.0 & 0x38 == from_square.0 & 0x38 {
+                //Prefilter if king is in smae row
                 let pawn_sq = match c {
                     Color::White => ep_sq.0 - 8,
                     Color::Black => ep_sq.0 + 8,

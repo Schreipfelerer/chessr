@@ -10,7 +10,7 @@ pub struct Board {
 impl Board {
     pub fn from_fen_part(fen_part: &str) -> Result<Self, FenErr> {
         let mut pieces: [[u64; 6]; 2] = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]];
-        let mut rank = 7;
+        let mut rank: u32 = 7;
         let mut file = 0;
         let mut mailbox: [Option<Piece>; 64] = [None; 64];
         for c in fen_part.chars() {
@@ -20,7 +20,7 @@ impl Board {
                         return Err(FenErr::InvaidRankLength);
                     }
                     file = 0;
-                    rank -= 1;
+                    rank = rank.checked_sub(1).ok_or(FenErr::InvaidRankCount)?;
                 }
                 '1'..='8' => file += c.to_digit(10).unwrap(),
                 _ => {
@@ -359,10 +359,10 @@ fn castle_rights(rights: &str) -> Result<u8, FenErr> {
 
 #[derive(Debug)]
 pub struct StateInfo {
-    has_castle_rights: u8, // Bit 0-3 Unused, White Short, White Long, Black Short, Black Long
-    is_white_to_move: bool,
-    half_move_clock: u8,
-    full_move_number: u32,
+    pub has_castle_rights: u8, // Bit 0-3 Unused, White Short, White Long, Black Short, Black Long
+    pub is_white_to_move: bool,
+    pub half_move_clock: u8,
+    pub full_move_number: u32,
     pub ep_square: Option<Sq64>,
 }
 
@@ -608,7 +608,7 @@ impl MoveFlag {
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.source(), self.target())?;
-        if self.flags().is_capture() {
+        if self.flags().is_promotion() {
             let promo_string = match self.flags().promoted_piece() {
                 Piece::Knight => "n",
                 Piece::Bishop => "b",
@@ -616,7 +616,7 @@ impl fmt::Display for Move {
                 Piece::Queen => "q",
                 _ => unreachable!(),
             };
-            write!(f, "-{}", promo_string)?;
+            write!(f, "{}", promo_string)?;
         }
         Ok(())
     }

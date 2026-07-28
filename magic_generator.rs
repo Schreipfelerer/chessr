@@ -118,12 +118,12 @@ pub const fn compute_between() -> [[u64; 64]; 64] {
     let mut table = [[0; 64]; 64];
     let mut a = 0_i8;
     while a < 64 {
-        let rank_a = a & 7;
-        let file_a = a >> 3;
+        let file_a = a & 7;
+        let rank_a = a >> 3;
         let mut b = 0_i8;
         while b < 64 {
-            let rank_b = b & 7;
-            let file_b = b >> 3;
+            let file_b = b & 7;
+            let rank_b = b >> 3;
 
             let dr = rank_b - rank_a;
             let adr = rank_a.abs_diff(rank_b);
