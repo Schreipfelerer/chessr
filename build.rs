@@ -5,7 +5,7 @@ use std::{env, fs::File, io::Write, path::Path};
 use bytemuck::cast_slice;
 use crate::{
     magic_bitboards::{BISHOP_MAGIC, ROOK_MAGIC},
-    magic_generator::{BISHOP_OFFSETS, ROOK_OFFSETS, compute_blockers, compute_magic},
+    magic_generator::{BISHOP_OFFSETS, ROOK_OFFSETS, compute_between, compute_blockers, compute_magic},
 };
 
 fn main() {
@@ -37,5 +37,10 @@ fn main() {
     let path = Path::new(&out_dir).join("rook_attackers.bin");
     let mut file = File::create(path).unwrap();
     let data: [[u64; 4096]; 64] = compute_magic(&ROOK_OFFSETS, rook_blockers, 12, ROOK_MAGIC);
+    file.write_all(cast_slice(&data)).unwrap();
+
+    let path = Path::new(&out_dir).join("between.bin");
+    let mut file = File::create(path).unwrap();
+    let data: [[u64; 64]; 64] = compute_between();
     file.write_all(cast_slice(&data)).unwrap();
 }

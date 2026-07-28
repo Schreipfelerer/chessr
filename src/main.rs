@@ -2,7 +2,10 @@ use std::io::{self, BufRead};
 
 use chessr::{
     board::{BoardState, Move, Undo},
-    movegen::{generate::{generate_moves, is_square_attacked_by}, perft::{perft, perft_devide}},
+    movegen::{
+        generate::generate_moves,
+        perft::{perft, perft_devide},
+    },
 };
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -50,20 +53,7 @@ fn main() {
                         Some(mov) => *mov,
                     };
 
-                    let potential_undo = game_state.make_move(m);
-                    if is_square_attacked_by(
-                        game_state
-                            .board
-                            .find_king(game_state.state_info.active_color().flip()),
-                        game_state.state_info.active_color(),
-                        &game_state.board,
-                    ) {
-                        println!("That would leave you in check");
-                        game_state.undo_move(potential_undo);
-                        continue;
-                    }
-
-                    undo = Some(potential_undo);
+                    undo = Some(game_state.make_move(m));
                     println!("{}", game_state.board);
                 }
             }

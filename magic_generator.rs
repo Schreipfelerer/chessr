@@ -113,3 +113,44 @@ impl Sq88 {
         Sq88(((self.0 as i8).wrapping_add(offset)) as u8)
     }
 }
+
+pub const fn compute_between() -> [[u64; 64]; 64] {
+    let mut table = [[0; 64]; 64];
+    let mut a = 0_i8;
+    while a < 64 {
+        let rank_a = a & 7;
+        let file_a = a >> 3;
+        let mut b = 0_i8;
+        while b < 64 {
+            let rank_b = b & 7;
+            let file_b = b >> 3;
+
+            let dr = rank_b - rank_a;
+            let adr = rank_a.abs_diff(rank_b);
+            let df = file_b - file_a;
+            let adf = file_a.abs_diff(file_b);
+            if (adr == adf || dr == 0 || df == 0) && a != b {
+                let sr = dr.signum();
+                let sf = df.signum();
+
+                let mut current_f = file_a + sf;
+                let mut current_r = rank_a + sr;
+                let mut mask = 0u64;
+
+                // Step towards b, filling all squares STRICTLY between a and b
+                while current_f != file_b || current_r != rank_b {
+                    let sq = (current_r * 8 + current_f) as u8;
+                    mask |= 1u64 << sq;
+
+                    current_f += sf;
+                    current_r += sr;
+                }
+
+                table[a as usize][b as usize] = mask;
+            }
+            b += 1;
+        }
+        a += 1;
+    }
+    table
+}

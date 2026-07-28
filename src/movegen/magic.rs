@@ -22,6 +22,10 @@ static ROOK_BYTES_ATTACKS: AlignedBytes<2_097_152> = AlignedBytes(*include_bytes
     env!("OUT_DIR"),
     "/rook_attackers.bin"
 )));
+static BETWEEN_BYTES: AlignedBytes<32_768> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/between.bin"
+)));
 
 pub static BISHOP_ATTACKS: &[[u64; 512]; 64] =
     unsafe { &*(BISHOP_BYTES_ATTACKS.0.as_ptr() as *const [[u64; 512]; 64]) };
@@ -31,6 +35,9 @@ pub static BISHOP_BLOCKERS: &[u64; 64] =
     unsafe { &*(BISHOP_BYTES_BLOCKER.0.as_ptr() as *const [u64; 64]) };
 pub static ROOK_BLOCKERS: &[u64; 64] =
     unsafe { &*(ROOK_BYTES_BLOCKER.0.as_ptr() as *const [u64; 64]) };
+pub static BETWEEN: &[[u64; 64]; 64] =
+    unsafe { &*(BETWEEN_BYTES.0.as_ptr() as *const [[u64; 64]; 64]) };
+
 
 pub fn get_bishop_moves(sq: Sq64, bb: u64) -> u64 {
     let sq_ind = sq.0 as usize;
