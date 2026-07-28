@@ -96,7 +96,7 @@ mod perft_tests {
         FenTest {
             fen: "7k/8/2r3K1/3Pp3/8/8/8/8 w - e6 0 1",
             depth: 1,
-            actual_moves: 9,
+            actual_moves: 7,
             explanation: "EP to block check",
         }
         .test();

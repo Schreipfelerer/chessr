@@ -307,17 +307,16 @@ pub fn generate_pawn_moves(
     }
     // EP
     if let Some(ep_sq) = state_info.ep_square {
-        if pa_bb & (0b1 << ep_sq.0) & valid_destinations != 0 {
-            // TODO if black pawn is attacking king
-
+        let pawn_sq = match c {
+            Color::White => ep_sq.0 - 8,
+            Color::Black => ep_sq.0 + 8,
+        };
+        let bb = pa_bb & (0b1 << ep_sq.0);
+        if bb & valid_destinations != 0 {
             // Check for double pin EdgeCase
             let king_sq = board.find_king(c);
+            //Prefilter if king is in smae row
             if king_sq.0 & 0x38 == from_square.0 & 0x38 {
-                //Prefilter if king is in smae row
-                let pawn_sq = match c {
-                    Color::White => ep_sq.0 - 8,
-                    Color::Black => ep_sq.0 + 8,
-                };
                 let mask = 1 << from_square.0 | 1 << pawn_sq;
                 let occupancy = board.get_occupany() & !mask;
 
@@ -331,6 +330,10 @@ pub fn generate_pawn_moves(
             } else {
                 moves.push(Move::new_flags(from_square, ep_sq, MoveFlag::EnPassant));
             }
+        }
+        // Edgecase if taken pawn is putting king in check
+        else if bb != 0 && (0b1 << pawn_sq) & valid_destinations != 0 {
+            moves.push(Move::new_flags(from_square, ep_sq, MoveFlag::EnPassant));
         }
     }
 }
