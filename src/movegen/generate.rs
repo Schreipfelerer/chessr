@@ -133,6 +133,22 @@ fn compute_pins(board: &Board, c: Color) -> ArrayVec<(Sq64, u64), 8> {
         }
     }
 
+    //Bishops
+    let bb = (board.get_piece_bitboard(c.flip(), Piece::Bishop)
+        | board.get_piece_bitboard(c.flip(), Piece::Queen))
+        & get_bishop_moves(sq, board.get_enemy_occupancy(c));
+    for tsq in BitboardIter(bb) {
+        let path = BETWEEN[sq.0 as usize][tsq.0 as usize];
+        let path_blockers = path & board.get_friendly_occupancy(c);
+        if path_blockers.count_ones() == 1 {
+            // Found pin
+            pins.push((
+                Sq64(path_blockers.trailing_zeros() as u8),
+                path | (1 << tsq.0),
+            ));
+        }
+    }
+
     pins
 }
 
@@ -140,8 +156,8 @@ fn compute_checkers(board: &Board, c: Color) -> u64 {
     let mut bb = 0u64;
     let sq = board.find_king(c);
     let co = c.flip();
-    bb |= PAWN_ATTACKS[co as usize][sq.0 as usize] & board.get_piece_bitboard(co, Piece::Pawn);
-    bb |= KING_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(co, Piece::Knight);
+    bb |= PAWN_ATTACKS[c as usize][sq.0 as usize] & board.get_piece_bitboard(co, Piece::Pawn);
+    bb |= KNIGHT_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(co, Piece::Knight);
     bb |= get_bishop_moves(sq, board.get_occupany())
         & (board.get_piece_bitboard(co, Piece::Bishop)
             | board.get_piece_bitboard(co, Piece::Queen));
@@ -291,8 +307,26 @@ pub fn generate_pawn_moves(
     // EP
     if let Some(ep_sq) = state_info.ep_square {
         if pa_bb & (1 << ep_sq.0) & valid_destinations != 0 {
-            // TODO No fancy sliding
-            moves.push(Move::new_flags(from_square, ep_sq, MoveFlag::EnPassant));
+            // Check for double pin EdgeCase
+            let king_sq = board.find_king(c);
+            if king_sq.0 & 0x38 == from_square.0 & 0x38 { //Prefilter if king is in smae row
+                let pawn_sq = match c {
+                    Color::White => ep_sq.0 - 8,
+                    Color::Black => ep_sq.0 + 8,
+                };
+                let mask = 1 << from_square.0 | 1 << pawn_sq;
+                let occupancy = board.get_occupany() & !mask;
+
+                if get_rook_moves(king_sq, occupancy)
+                    & (board.get_piece_bitboard(c.flip(), Piece::Rook)
+                        | board.get_piece_bitboard(c.flip(), Piece::Queen))
+                    == 0
+                {
+                    moves.push(Move::new_flags(from_square, ep_sq, MoveFlag::EnPassant));
+                }
+            } else {
+                moves.push(Move::new_flags(from_square, ep_sq, MoveFlag::EnPassant));
+            }
         }
     }
 }
