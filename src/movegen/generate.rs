@@ -78,8 +78,9 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
             // Only inbetween or attacker or king moves
             let king_sq = board.find_king(c);
             let attacker_sq = checkers.trailing_zeros();
-            let mut bb = BETWEEN[king_sq.0 as usize][attacker_sq as usize] | checkers;
+            let cbb = BETWEEN[king_sq.0 as usize][attacker_sq as usize] | checkers;
             for from_sq in BitboardIter(board.get_friendly_occupancy(c)) {
+                let mut bb = cbb;
                 // If pinned
                 if let Some((_, pin_bb)) = pinned.iter().find(|(sq, _)| *sq == from_sq) {
                     bb &= pin_bb;
