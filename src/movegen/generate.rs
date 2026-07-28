@@ -306,9 +306,8 @@ pub fn generate_pawn_moves(
     }
     // EP
     if let Some(ep_sq) = state_info.ep_square {
-        if pa_bb & (3 << ep_sq.0) & valid_destinations != 0 {
+        if pa_bb & (0b1 << ep_sq.0) & valid_destinations != 0 {
             // TODO if black pawn is attacking king
-            // TODO if black pawn is "pinned"
 
             // Check for double pin EdgeCase
             let king_sq = board.find_king(c);
