@@ -9,10 +9,10 @@
 
   outputs =
     {
-      self,
       nixpkgs,
       flake-utils,
       rust-overlay,
+      ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -27,6 +27,7 @@
             pkgs.cargo-watch
             pkgs.perf
           ];
+          RUSTFLAGS = "-C target-cpu=native";
         };
       }
     );

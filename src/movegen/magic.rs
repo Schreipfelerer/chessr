@@ -1,7 +1,6 @@
-use crate::{
-    board::Sq64,
-    magic_bitboards::{BISHOP_MAGIC, ROOK_MAGIC},
-};
+use std::arch::x86_64::_pext_u64;
+
+use crate::board::Sq64;
 
 #[repr(align(8))]
 struct AlignedBytes<const N: usize>([u8; N]);
@@ -36,12 +35,15 @@ pub static ROOK_BLOCKERS: &[u64; 64] =
 pub static BETWEEN: &[[u64; 64]; 64] =
     unsafe { &*(BETWEEN_BYTES.0.as_ptr() as *const [[u64; 64]; 64]) };
 
+#[inline(always)]
 pub fn get_bishop_moves(sq: Sq64, bb: u64) -> u64 {
-    BISHOP_ATTACKS[sq.ind()][magic_index(sq.0, bb & BISHOP_BLOCKERS[sq.ind()], 9, BISHOP_MAGIC)]
+    BISHOP_ATTACKS[sq.ind()][pext_index(bb, BISHOP_BLOCKERS[sq.ind()])]
 }
+#[inline(always)]
 pub fn get_rook_moves(sq: Sq64, bb: u64) -> u64 {
-    ROOK_ATTACKS[sq.ind()][magic_index(sq.0, bb & ROOK_BLOCKERS[sq.ind()], 12, ROOK_MAGIC)]
+    ROOK_ATTACKS[sq.ind()][pext_index(bb, ROOK_BLOCKERS[sq.ind()])]
 }
-const fn magic_index(sq: u8, bb: u64, bits: u8, magic_table: [u64; 64]) -> usize {
-    (bb.wrapping_mul(magic_table[sq as usize]) >> 64 - bits) as usize
+#[inline(always)]
+fn pext_index(bb: u64, mask: u64) -> usize {
+    unsafe { _pext_u64(bb, mask) as usize }
 }
