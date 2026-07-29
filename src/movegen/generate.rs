@@ -1,38 +1,8 @@
 use crate::{
     board::{Board, BoardState, Color, Move, MoveFlag, Piece, Sq64, StateInfo},
-    movegen::magic::{BETWEEN, get_bishop_moves, get_rook_moves},
+    movegen::consts::{BETWEEN, KING_ATTACKS, KNIGHT_ATTACKS, PAWN_ATTACKS, get_bishop_moves, get_rook_moves},
 };
 use arrayvec::ArrayVec;
-
-// Direction offsets for sliding pieces
-pub const KING_OFFSETS: [i8; 8] = [1, -1, 16, -16, 15, 17, -15, -17];
-pub const KNIGHT_OFFSETS: [i8; 8] = [31, 33, 18, 14, -31, -33, -18, -14];
-pub const KNIGHT_ATTACKS: [u64; 64] = compute_attacks(&KNIGHT_OFFSETS);
-pub const KING_ATTACKS: [u64; 64] = compute_attacks(&KING_OFFSETS);
-pub const PAWN_ATTACKS: [[u64; 64]; 2] = [compute_attacks(&[15, 17]), compute_attacks(&[-15, -17])];
-
-const fn compute_attacks(offsets: &[i8]) -> [u64; 64] {
-    let len = offsets.len();
-    let mut table = [0u64; 64];
-    let mut sq = 0u8;
-    while sq < 64 {
-        let from_0x88 = sq + (sq & !7); // same as Sq64::to_sq88
-        let mut bb = 0u64;
-        let mut i = 0;
-        while i < len {
-            let offset = offsets[i];
-            let to_0x88 = (from_0x88 as i8).wrapping_add(offset) as u8;
-            if to_0x88 & 0x88 == 0 {
-                let to_64 = (to_0x88 + (to_0x88 & 7)) >> 1; // same as Sq88::to_sq64
-                bb |= 1u64 << to_64;
-            }
-            i += 1;
-        }
-        table[sq as usize] = bb;
-        sq += 1;
-    }
-    table
-}
 
 pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
     let board = &board_state.board;

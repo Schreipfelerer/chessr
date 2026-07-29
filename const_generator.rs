@@ -1,13 +1,38 @@
 use std::arch::x86_64::_pext_u64;
 
+pub const KNIGHT_OFFSETS: [i8; 8] = [31, 33, 18, 14, -31, -33, -18, -14];
 pub const BISHOP_OFFSETS: [i8; 4] = [15, 17, -15, -17];
 pub const ROOK_OFFSETS: [i8; 4] = [1, -1, 16, -16];
+pub const KING_OFFSETS: [i8; 8] = [1, -1, 16, -16, 15, 17, -15, -17];
 
 pub fn compute_magic<const N: usize>(offsets: &[i8; 4], blockers: [u64; 64]) -> [[u64; N]; 64] {
     let mut table = [[0u64; N]; 64];
     let mut sq = 0u8;
     while sq < 64 {
         table[sq as usize] = compute_magic_square(sq, offsets, blockers);
+        sq += 1;
+    }
+    table
+}
+
+pub const fn compute_attacks(offsets: &[i8]) -> [u64; 64] {
+    let len = offsets.len();
+    let mut table = [0u64; 64];
+    let mut sq = 0u8;
+    while sq < 64 {
+        let from_0x88 = sq + (sq & !7); // same as Sq64::to_sq88
+        let mut bb = 0u64;
+        let mut i = 0;
+        while i < len {
+            let offset = offsets[i];
+            let to_0x88 = (from_0x88 as i8).wrapping_add(offset) as u8;
+            if to_0x88 & 0x88 == 0 {
+                let to_64 = (to_0x88 + (to_0x88 & 7)) >> 1; // same as Sq88::to_sq64
+                bb |= 1u64 << to_64;
+            }
+            i += 1;
+        }
+        table[sq as usize] = bb;
         sq += 1;
     }
     table

@@ -11,7 +11,7 @@ static BISHOP_BYTES_BLOCKER: AlignedBytes<512> = AlignedBytes(*include_bytes!(co
 )));
 static BISHOP_BYTES_ATTACKS: AlignedBytes<262_144> = AlignedBytes(*include_bytes!(concat!(
     env!("OUT_DIR"),
-    "/bishop_attackers.bin"
+    "/bishop_attacks.bin"
 )));
 static ROOK_BYTES_BLOCKER: AlignedBytes<512> = AlignedBytes(*include_bytes!(concat!(
     env!("OUT_DIR"),
@@ -19,11 +19,29 @@ static ROOK_BYTES_BLOCKER: AlignedBytes<512> = AlignedBytes(*include_bytes!(conc
 )));
 static ROOK_BYTES_ATTACKS: AlignedBytes<2_097_152> = AlignedBytes(*include_bytes!(concat!(
     env!("OUT_DIR"),
-    "/rook_attackers.bin"
+    "/rook_attacks.bin"
+)));
+static PAWN_BYTES_ATTACKS: AlignedBytes<1024> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/pawn_attacks.bin"
+)));
+static KNIGHT_BYTES_ATTACKS: AlignedBytes<512> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/knight_attacks.bin"
+)));
+static KING_BYTES_ATTACKS: AlignedBytes<512> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/king_attacks.bin"
 )));
 static BETWEEN_BYTES: AlignedBytes<32_768> =
     AlignedBytes(*include_bytes!(concat!(env!("OUT_DIR"), "/between.bin")));
 
+pub static PAWN_ATTACKS: &[[u64; 64]; 2] =
+    unsafe { &*(PAWN_BYTES_ATTACKS.0.as_ptr() as *const [[u64; 64]; 2]) };
+pub static KNIGHT_ATTACKS: &[u64; 64] =
+    unsafe { &*(KNIGHT_BYTES_ATTACKS.0.as_ptr() as *const [u64; 64]) };
+pub static KING_ATTACKS: &[u64; 64] =
+    unsafe { &*(KING_BYTES_ATTACKS.0.as_ptr() as *const [u64; 64]) };
 pub static BISHOP_ATTACKS: &[[u64; 512]; 64] =
     unsafe { &*(BISHOP_BYTES_ATTACKS.0.as_ptr() as *const [[u64; 512]; 64]) };
 pub static ROOK_ATTACKS: &[[u64; 4096]; 64] =
