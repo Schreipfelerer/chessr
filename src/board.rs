@@ -1,4 +1,7 @@
-use std::fmt;
+use std::{
+    fmt,
+    ops::{Add, Sub},
+};
 
 #[derive(Debug)]
 pub struct Board {
@@ -75,18 +78,18 @@ impl Board {
         self.pieces[color as usize][piece as usize] ^= mask;
         self.occupancy[color as usize] ^= mask;
         self.occupancy[2] ^= mask;
-        self.mailbox[sq.0 as usize] = None;
+        self.mailbox[sq.ind()] = None;
     }
     pub fn place_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
         let mask = sq.mask();
         self.pieces[color as usize][piece as usize] ^= mask;
         self.occupancy[color as usize] ^= mask;
         self.occupancy[2] ^= mask;
-        self.mailbox[sq.0 as usize] = Some(piece);
+        self.mailbox[sq.ind()] = Some(piece);
     }
 
     pub fn get_piece_at(&self, sq: Sq64) -> Piece {
-        self.mailbox[sq.0 as usize].unwrap()
+        self.mailbox[sq.ind()].unwrap()
     }
 
     fn get_piece_visual(&self, rank: u8, file: u8) -> char {
@@ -182,32 +185,26 @@ impl BoardState {
             MoveFlag::DoublePawnPush => {
                 self.board.place_piece(to, color, piece);
                 self.state_info.ep_square = match color {
-                    Color::White => Some(Sq64(from.0 + 8)),
-                    Color::Black => Some(Sq64(from.0 - 8)),
+                    Color::White => Some(from + 8),
+                    Color::Black => Some(from - 8),
                 }
             }
             MoveFlag::CastleKingside => {
                 self.board.place_piece(to, color, Piece::King);
-                self.board.place_piece(Sq64(from.0 + 1), color, Piece::Rook);
-                self.board.remove_piece(Sq64(to.0 + 1), color, Piece::Rook);
+                self.board.place_piece(from + 1, color, Piece::Rook);
+                self.board.remove_piece(to + 1, color, Piece::Rook);
             }
             MoveFlag::CastleQueenside => {
                 self.board.place_piece(to, color, Piece::King);
-                self.board.place_piece(Sq64(from.0 - 1), color, Piece::Rook);
-                self.board.remove_piece(Sq64(to.0 - 2), color, Piece::Rook);
+                self.board.place_piece(from - 1, color, Piece::Rook);
+                self.board.remove_piece(to - 2, color, Piece::Rook);
             }
             MoveFlag::EnPassant => {
                 self.board.place_piece(to, color, Piece::Pawn);
                 undo.captured_piece = Some(Piece::Pawn);
                 match color {
-                    Color::White => {
-                        self.board
-                            .remove_piece(Sq64(to.0 - 8), Color::Black, Piece::Pawn)
-                    }
-                    Color::Black => {
-                        self.board
-                            .remove_piece(Sq64(to.0 + 8), Color::White, Piece::Pawn)
-                    }
+                    Color::White => self.board.remove_piece(to - 8, Color::Black, Piece::Pawn),
+                    Color::Black => self.board.remove_piece(to + 8, Color::White, Piece::Pawn),
                 }
             }
             _ if flags.is_capture() => {
@@ -254,10 +251,10 @@ impl BoardState {
 
         if let Some(cp) = undo.captured_piece {
             if flag == MoveFlag::EnPassant {
-                let csq = Sq64(match color {
-                    Color::White => to.0 + 8,
-                    Color::Black => to.0 - 8,
-                });
+                let csq = match color {
+                    Color::White => to + 8,
+                    Color::Black => to - 8,
+                };
                 self.board.place_piece(csq, color, cp);
             } else {
                 self.board.place_piece(to, color, cp);
@@ -271,16 +268,12 @@ impl BoardState {
         }
 
         if flag == MoveFlag::CastleKingside {
-            self.board
-                .remove_piece(Sq64(to.0 - 1), prev_color, Piece::Rook);
-            self.board
-                .place_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
+            self.board.remove_piece(to - 1, prev_color, Piece::Rook);
+            self.board.place_piece(to + 1, prev_color, Piece::Rook);
         }
         if flag == MoveFlag::CastleQueenside {
-            self.board
-                .remove_piece(Sq64(to.0 + 1), prev_color, Piece::Rook);
-            self.board
-                .place_piece(Sq64(to.0 - 2), prev_color, Piece::Rook);
+            self.board.remove_piece(to + 1, prev_color, Piece::Rook);
+            self.board.place_piece(to - 2, prev_color, Piece::Rook);
         }
 
         self.state_info.ep_square = undo.prev_ep_square;
@@ -651,8 +644,28 @@ impl Sq64 {
         1 << self.0
     }
     #[inline(always)]
-    pub fn is_on_bb(self, bb: u64) -> bool{
+    pub fn is_on_bb(self, bb: u64) -> bool {
         bb >> self.0 & 1 == 1
+    }
+    #[inline(always)]
+    pub fn ind(self) -> usize {
+        self.0 as usize
+    }
+}
+impl Add<i8> for Sq64 {
+    type Output = Self;
+
+    #[inline(always)]
+    fn add(self, rhs: i8) -> Self::Output {
+        Sq64(self.0.wrapping_add_signed(rhs))
+    }
+}
+impl Sub<i8> for Sq64 {
+    type Output = Self;
+
+    #[inline(always)]
+    fn sub(self, rhs: i8) -> Self::Output {
+        Sq64(self.0.wrapping_sub_signed(rhs))
     }
 }
 
