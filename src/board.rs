@@ -65,20 +65,20 @@ impl Board {
         self.pieces[color as usize][piece as usize]
     }
     pub fn is_occupied(&self, sq: Sq64) -> bool {
-        self.occupancy[2] >> sq.0 & 1 == 1
+        sq.is_on_bb(self.occupancy[2])
     }
     pub fn is_occupied_enemy(&self, sq: Sq64, color: Color) -> bool {
-        self.occupancy[color.flip() as usize] >> sq.0 & 1 == 1
+        sq.is_on_bb(self.occupancy[color.flip() as usize])
     }
     pub fn remove_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
-        let mask: u64 = 0x1 << sq.0;
+        let mask = sq.mask();
         self.pieces[color as usize][piece as usize] ^= mask;
         self.occupancy[color as usize] ^= mask;
         self.occupancy[2] ^= mask;
         self.mailbox[sq.0 as usize] = None;
     }
     pub fn place_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
-        let mask: u64 = 0x1 << sq.0;
+        let mask = sq.mask();
         self.pieces[color as usize][piece as usize] ^= mask;
         self.occupancy[color as usize] ^= mask;
         self.occupancy[2] ^= mask;
@@ -236,7 +236,7 @@ impl BoardState {
         if color == Color::Black {
             self.state_info.full_move_number += 1
         }
-        self.state_info.is_white_to_move = !self.state_info.is_white_to_move;
+        self.state_info.is_whites_turn = !self.state_info.is_whites_turn;
 
         undo
     }
@@ -284,12 +284,12 @@ impl BoardState {
         }
 
         self.state_info.ep_square = undo.prev_ep_square;
-        self.state_info.has_castle_rights = undo.prev_castling_rights;
+        self.state_info.castle_rights = undo.prev_castling_rights;
         self.state_info.half_move_clock = undo.prev_halfmove_clock;
         if color == Color::White {
             self.state_info.full_move_number -= 1
         }
-        self.state_info.is_white_to_move = !self.state_info.is_white_to_move;
+        self.state_info.is_whites_turn = !self.state_info.is_whites_turn;
     }
 }
 
@@ -307,7 +307,7 @@ impl Undo {
             r#move: m,
             captured_piece: None,
             prev_halfmove_clock: state_info.half_move_clock,
-            prev_castling_rights: state_info.has_castle_rights,
+            prev_castling_rights: state_info.castle_rights,
             prev_ep_square: state_info.ep_square,
         }
     }
@@ -359,8 +359,8 @@ fn castle_rights(rights: &str) -> Result<u8, FenErr> {
 
 #[derive(Debug)]
 pub struct StateInfo {
-    pub has_castle_rights: u8, // Bit 0-3 Unused, White Short, White Long, Black Short, Black Long
-    pub is_white_to_move: bool,
+    pub castle_rights: u8, // Bit 0-3 Unused, White Short, White Long, Black Short, Black Long
+    pub is_whites_turn: bool,
     pub half_move_clock: u8,
     pub full_move_number: u32,
     pub ep_square: Option<Sq64>,
@@ -369,12 +369,12 @@ pub struct StateInfo {
 impl StateInfo {
     pub fn from_fen(fen_parts: &[&str]) -> Result<Self, FenErr> {
         Ok(Self {
-            is_white_to_move: match fen_parts[0] {
+            is_whites_turn: match fen_parts[0] {
                 "w" => true,
                 "b" => false,
                 _ => return Err(FenErr::InvalidSideToMove),
             },
-            has_castle_rights: castle_rights(fen_parts[1])?,
+            castle_rights: castle_rights(fen_parts[1])?,
             ep_square: match fen_parts[2] {
                 "-" => None,
                 sq => Some(square_from_algebratic(sq)?),
@@ -388,7 +388,7 @@ impl StateInfo {
         })
     }
     pub fn active_color(&self) -> Color {
-        (!self.is_white_to_move).into()
+        (!self.is_whites_turn).into()
     }
     pub fn has_castle_rights(&self, color: Color, is_short: bool) -> bool {
         let mut offset = match color {
@@ -398,7 +398,7 @@ impl StateInfo {
         if is_short {
             offset += 1;
         }
-        self.has_castle_rights >> offset & 0x1 == 1
+        self.castle_rights >> offset & 0x1 == 1
     }
     pub fn clear_corner_castle_rights(&mut self, sq: Sq64) {
         let mask = match sq.0 {
@@ -408,14 +408,14 @@ impl StateInfo {
             63 => 0b0010, // Black kingside rook home
             _ => 0,
         };
-        self.has_castle_rights &= !mask;
+        self.castle_rights &= !mask;
     }
     pub fn remove_castle_rights(&mut self, color: Color) {
         let offset = match color {
             Color::Black => 0,
             Color::White => 2,
         };
-        self.has_castle_rights &= !(0b0011 << offset)
+        self.castle_rights &= !(0b0011 << offset)
     }
 }
 
@@ -638,6 +638,22 @@ impl Sq64 {
         }
         Some(Sq64(notation[0] - b'a' + ((notation[1] - b'1') * 8)))
     }
+    #[inline(always)]
+    pub fn rank(self) -> u8 {
+        self.0 >> 3
+    }
+    #[inline(always)]
+    pub fn file(self) -> u8 {
+        self.0 & 7
+    }
+    #[inline(always)]
+    pub fn mask(self) -> u64 {
+        1 << self.0
+    }
+    #[inline(always)]
+    pub fn is_on_bb(self, bb: u64) -> bool{
+        bb >> self.0 & 1 == 1
+    }
 }
 
 impl fmt::Display for Sq64 {
@@ -645,8 +661,8 @@ impl fmt::Display for Sq64 {
         write!(
             f,
             "{}{}",
-            (b'a' + (self.0 & 7)) as char,
-            (b'1' + (self.0 >> 3)) as char
+            (b'a' + self.file()) as char,
+            (b'1' + self.rank()) as char
         )
     }
 }

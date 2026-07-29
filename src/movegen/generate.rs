@@ -46,65 +46,17 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
 
     match checkers.count_ones() {
         0 => {
-            for from_sq in BitboardIter(board.get_friendly_occupancy(c)) {
-                // If pinned
-                let mut bb = !0u64;
-                if let Some((_, pin_bb)) = pinned.iter().find(|(sq, _)| *sq == from_sq) {
-                    bb &= pin_bb;
-                }
-                match board.get_piece_at(from_sq) {
-                    Piece::Pawn => {
-                        generate_pawn_moves(board, from_sq, c, &mut moves, state_info, bb)
-                    }
-                    Piece::Knight => generate_knight_moves(board, from_sq, c, &mut moves, bb),
-                    Piece::Bishop => {
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Bishop, bb)
-                    }
-                    Piece::Rook => {
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Rook, bb)
-                    }
-                    Piece::Queen => {
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Bishop, bb);
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Rook, bb);
-                    }
-                    Piece::King => {
-                        generate_king_moves(board, from_sq, c, &mut moves, attacked);
-                        generate_castles(board, from_sq, c, &mut moves, state_info, attacked);
-                    }
-                }
-            }
+            let bb = !0u64;
+            generate_all(board, state_info, c, &mut moves, attacked, pinned, bb, true);
         }
         1 => {
             // Only inbetween or attacker or king moves
             let king_sq = board.find_king(c);
             let attacker_sq = checkers.trailing_zeros();
-            let cbb = BETWEEN[king_sq.0 as usize][attacker_sq as usize] | checkers;
-            for from_sq in BitboardIter(board.get_friendly_occupancy(c)) {
-                let mut bb = cbb;
-                // If pinned
-                if let Some((_, pin_bb)) = pinned.iter().find(|(sq, _)| *sq == from_sq) {
-                    bb &= pin_bb;
-                }
-                match board.get_piece_at(from_sq) {
-                    Piece::Pawn => {
-                        generate_pawn_moves(board, from_sq, c, &mut moves, state_info, bb)
-                    }
-                    Piece::Knight => generate_knight_moves(board, from_sq, c, &mut moves, bb),
-                    Piece::Bishop => {
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Bishop, bb)
-                    }
-                    Piece::Rook => {
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Rook, bb)
-                    }
-                    Piece::Queen => {
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Bishop, bb);
-                        generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Rook, bb);
-                    }
-                    Piece::King => {
-                        generate_king_moves(board, from_sq, c, &mut moves, attacked);
-                    }
-                }
-            }
+            let bb = BETWEEN[king_sq.0 as usize][attacker_sq as usize] | checkers;
+            generate_all(
+                board, state_info, c, &mut moves, attacked, pinned, bb, false,
+            );
         }
         _ => {
             // Only King Movements
@@ -115,6 +67,41 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
     moves
 }
 
+fn generate_all(
+    board: &Board,
+    state_info: &StateInfo,
+    c: Color,
+    moves: &mut ArrayVec<Move, 256>,
+    attacked: u64,
+    pinned: ArrayVec<(Sq64, u64), 8>,
+    bb: u64,
+    allow_castle: bool,
+) {
+    for from_sq in BitboardIter(board.get_friendly_occupancy(c)) {
+        let mut bb = bb;
+        // If pinned
+        if let Some((_, pin_bb)) = pinned.iter().find(|(sq, _)| *sq == from_sq) {
+            bb &= pin_bb;
+        }
+        match board.get_piece_at(from_sq) {
+            Piece::Pawn => generate_pawn_moves(board, from_sq, c, moves, state_info, bb),
+            Piece::Knight => generate_knight_moves(board, from_sq, c, moves, bb),
+            Piece::Bishop => generate_sliding_moves(board, from_sq, c, moves, Piece::Bishop, bb),
+            Piece::Rook => generate_sliding_moves(board, from_sq, c, moves, Piece::Rook, bb),
+            Piece::Queen => {
+                generate_sliding_moves(board, from_sq, c, moves, Piece::Bishop, bb);
+                generate_sliding_moves(board, from_sq, c, moves, Piece::Rook, bb);
+            }
+            Piece::King => {
+                generate_king_moves(board, from_sq, c, moves, attacked);
+                if allow_castle {
+                    generate_castles(board, from_sq, c, moves, state_info, attacked);
+                }
+            }
+        }
+    }
+}
+
 fn compute_pins(board: &Board, c: Color) -> ArrayVec<(Sq64, u64), 8> {
     let sq = board.find_king(c);
     let mut pins = ArrayVec::new();
@@ -122,22 +109,16 @@ fn compute_pins(board: &Board, c: Color) -> ArrayVec<(Sq64, u64), 8> {
     let bb = (board.get_piece_bitboard(c.flip(), Piece::Rook)
         | board.get_piece_bitboard(c.flip(), Piece::Queen))
         & get_rook_moves(sq, board.get_enemy_occupancy(c));
-    for tsq in BitboardIter(bb) {
-        let path = BETWEEN[sq.0 as usize][tsq.0 as usize];
-        let path_blockers = path & board.get_friendly_occupancy(c);
-        if path_blockers.count_ones() == 1 {
-            // Found pin
-            pins.push((
-                Sq64(path_blockers.trailing_zeros() as u8),
-                path | (1 << tsq.0),
-            ));
-        }
-    }
-
+    push_pins(board, c, sq, &mut pins, bb);
     //Bishops
     let bb = (board.get_piece_bitboard(c.flip(), Piece::Bishop)
         | board.get_piece_bitboard(c.flip(), Piece::Queen))
         & get_bishop_moves(sq, board.get_enemy_occupancy(c));
+    push_pins(board, c, sq, &mut pins, bb);
+    pins
+}
+
+fn push_pins(board: &Board, c: Color, sq: Sq64, pins: &mut ArrayVec<(Sq64, u64), 8>, bb: u64) {
     for tsq in BitboardIter(bb) {
         let path = BETWEEN[sq.0 as usize][tsq.0 as usize];
         let path_blockers = path & board.get_friendly_occupancy(c);
@@ -145,12 +126,10 @@ fn compute_pins(board: &Board, c: Color) -> ArrayVec<(Sq64, u64), 8> {
             // Found pin
             pins.push((
                 Sq64(path_blockers.trailing_zeros() as u8),
-                path | (1 << tsq.0),
+                path | tsq.mask(),
             ));
         }
     }
-
-    pins
 }
 
 fn compute_checkers(board: &Board, c: Color) -> u64 {
@@ -254,8 +233,8 @@ pub fn generate_pawn_moves(
         Color::Black => from_square.0 - 8,
     });
     if !board.is_occupied(target_square) {
-        if valid_destinations >> target_square.0 & 1 == 1 {
-            if target_square.0 >> 3 == 7 || target_square.0 >> 3 == 0 {
+        if target_square.is_on_bb(valid_destinations) {
+            if target_square.rank() == 7 || target_square.rank() == 0 {
                 // Promotion
                 for piece in Piece::PROMOTABLE {
                     moves.push(Move::new_flags(
@@ -270,14 +249,14 @@ pub fn generate_pawn_moves(
             }
         }
         // Double Pawn Push
-        if (from_square.0 >> 3 == 1 && c == Color::White)
-            || (from_square.0 >> 3 == 6 && c == Color::Black)
+        if (from_square.rank() == 1 && c == Color::White)
+            || (from_square.rank() == 6 && c == Color::Black)
         {
             let target_square = Sq64(match c {
                 Color::White => from_square.0 + 16,
                 Color::Black => from_square.0 - 16,
             });
-            if valid_destinations >> target_square.0 & 1 == 1 {
+            if target_square.is_on_bb(valid_destinations) {
                 if !board.is_occupied(target_square) {
                     moves.push(Move::new_flags(
                         from_square,
@@ -291,7 +270,7 @@ pub fn generate_pawn_moves(
     // Taking
     let pa_bb = PAWN_ATTACKS[c as usize][from_square.0 as usize];
     for to_sq in BitboardIter(pa_bb & board.get_enemy_occupancy(c) & valid_destinations) {
-        if to_sq.0 >> 3 == 7 || to_sq.0 >> 3 == 0 {
+        if to_sq.rank() == 7 || to_sq.rank() == 0 {
             //Promotion Capture
             for piece in Piece::PROMOTABLE {
                 moves.push(Move::new_flags(
@@ -308,16 +287,16 @@ pub fn generate_pawn_moves(
     // EP
     if let Some(ep_sq) = state_info.ep_square {
         let pawn_sq = match c {
-            Color::White => ep_sq.0 - 8,
-            Color::Black => ep_sq.0 + 8,
+            Color::White => Sq64(ep_sq.0 - 8),
+            Color::Black => Sq64(ep_sq.0 + 8),
         };
-        let bb = pa_bb & (0b1 << ep_sq.0);
+        let bb = pa_bb & ep_sq.mask();
         if bb & valid_destinations != 0 {
             // Check for double pin EdgeCase
             let king_sq = board.find_king(c);
             //Prefilter if king is in smae row
-            if king_sq.0 & 0x38 == from_square.0 & 0x38 {
-                let mask = 1 << from_square.0 | 1 << pawn_sq;
+            if king_sq.rank() == from_square.rank() {
+                let mask = from_square.mask() | pawn_sq.mask();
                 let occupancy = board.get_occupany() & !mask;
 
                 if get_rook_moves(king_sq, occupancy)
@@ -332,7 +311,7 @@ pub fn generate_pawn_moves(
             }
         }
         // Edgecase if taken pawn is putting king in check
-        else if bb != 0 && (0b1 << pawn_sq) & valid_destinations != 0 {
+        else if bb != 0 && pawn_sq.mask() & valid_destinations != 0 {
             moves.push(Move::new_flags(from_square, ep_sq, MoveFlag::EnPassant));
         }
     }

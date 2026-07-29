@@ -63,7 +63,7 @@ mod board_tests {
         assert_eq!(board.state_info.half_move_clock, 0, "Half Move Clock");
         assert_eq!(board.state_info.full_move_number, 1, "Full moves");
         assert_eq!(
-            board.state_info.has_castle_rights, 0b00001111,
+            board.state_info.castle_rights, 0b00001111,
             "castle_rights"
         );
 
@@ -77,7 +77,7 @@ mod board_tests {
         );
         assert_eq!(board.state_info.ep_square, Some(Sq64(44)), "ep_square e6");
         assert_eq!(
-            board.state_info.has_castle_rights, 0,
+            board.state_info.castle_rights, 0,
             "castle_rights"
         );
     }
