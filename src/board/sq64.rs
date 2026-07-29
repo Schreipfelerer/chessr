@@ -1,9 +1,12 @@
-use crate::board::Sq64;
 use std::fmt;
 use std::ops::{Add, Sub};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sq64(pub u8);
+
 impl Sq64 {
     #[inline(always)]
+    #[must_use]
     pub fn from_notation(notation: &[u8]) -> Option<Self> {
         if notation.len() != 2 {
             return None;
@@ -17,22 +20,27 @@ impl Sq64 {
         Some(Sq64(notation[0] - b'a' + ((notation[1] - b'1') * 8)))
     }
     #[inline(always)]
+    #[must_use]
     pub fn rank(self) -> u8 {
         self.0 >> 3
     }
     #[inline(always)]
+    #[must_use]
     pub fn file(self) -> u8 {
         self.0 & 7
     }
     #[inline(always)]
+    #[must_use]
     pub fn mask(self) -> u64 {
         1 << self.0
     }
     #[inline(always)]
+    #[must_use]
     pub fn is_on_bb(self, bb: u64) -> bool {
         bb >> self.0 & 1 == 1
     }
     #[inline(always)]
+    #[must_use]
     pub fn ind(self) -> usize {
         self.0 as usize
     }

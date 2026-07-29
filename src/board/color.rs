@@ -1,20 +1,29 @@
-use crate::board::Color;
+use std::ops::Not;
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum Color {
+    White = 0,
+    Black = 1,
+}
 
 impl Color {
     pub const ALL: [Color; 2] = [Color::White, Color::Black];
-    pub fn flip(self) -> Color {
-        match self {
-            Color::Black => Color::White,
-            Color::White => Color::Black,
-        }
+}
+
+impl From<bool> for Color {
+    fn from(value: bool) -> Self {
+        if value { Color::Black } else { Color::White }
     }
 }
 
-impl Into<Color> for bool {
-    fn into(self) -> Color {
+impl Not for Color {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
         match self {
-            false => Color::White,
-            true => Color::Black,
+            Color::Black => Color::White,
+            Color::White => Color::Black,
         }
     }
 }

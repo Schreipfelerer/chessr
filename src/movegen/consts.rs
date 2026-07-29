@@ -55,13 +55,9 @@ pub static BETWEEN: &[[u64; 64]; 64] =
 
 #[inline(always)]
 pub fn get_bishop_moves(sq: Sq64, bb: u64) -> u64 {
-    BISHOP_ATTACKS[sq.ind()][pext_index(bb, BISHOP_BLOCKERS[sq.ind()])]
+    BISHOP_ATTACKS[sq.ind()][unsafe { _pext_u64(bb, BISHOP_BLOCKERS[sq.ind()]) as usize }]
 }
 #[inline(always)]
 pub fn get_rook_moves(sq: Sq64, bb: u64) -> u64 {
-    ROOK_ATTACKS[sq.ind()][pext_index(bb, ROOK_BLOCKERS[sq.ind()])]
-}
-#[inline(always)]
-fn pext_index(bb: u64, mask: u64) -> usize {
-    unsafe { _pext_u64(bb, mask) as usize }
+    ROOK_ATTACKS[sq.ind()][unsafe { _pext_u64(bb, ROOK_BLOCKERS[sq.ind()]) as usize }]
 }

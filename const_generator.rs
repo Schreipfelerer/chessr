@@ -5,7 +5,7 @@ pub const BISHOP_OFFSETS: [i8; 4] = [15, 17, -15, -17];
 pub const ROOK_OFFSETS: [i8; 4] = [1, -1, 16, -16];
 pub const KING_OFFSETS: [i8; 8] = [1, -1, 16, -16, 15, 17, -15, -17];
 
-pub fn compute_magic<const N: usize>(offsets: &[i8; 4], blockers: [u64; 64]) -> [[u64; N]; 64] {
+pub fn compute_magic<const N: usize>(offsets: [i8; 4], blockers: &[u64; 64]) -> [[u64; N]; 64] {
     let mut table = [[0u64; N]; 64];
     let mut sq = 0u8;
     while sq < 64 {
@@ -15,15 +15,14 @@ pub fn compute_magic<const N: usize>(offsets: &[i8; 4], blockers: [u64; 64]) -> 
     table
 }
 
-pub const fn compute_attacks(offsets: &[i8]) -> [u64; 64] {
-    let len = offsets.len();
+pub const fn compute_attacks<const N: usize>(offsets: [i8; N]) -> [u64; 64] {
     let mut table = [0u64; 64];
     let mut sq = 0u8;
     while sq < 64 {
         let from_0x88 = sq + (sq & !7); // same as Sq64::to_sq88
         let mut bb = 0u64;
         let mut i = 0;
-        while i < len {
+        while i < N {
             let offset = offsets[i];
             let to_0x88 = (from_0x88 as i8).wrapping_add(offset) as u8;
             if to_0x88 & 0x88 == 0 {
@@ -40,18 +39,18 @@ pub const fn compute_attacks(offsets: &[i8]) -> [u64; 64] {
 
 fn compute_magic_square<const N: usize>(
     sq: u8,
-    offsets: &[i8; 4],
-    blockers: [u64; 64],
+    offsets: [i8; 4],
+    blockers: &[u64; 64],
 ) -> [u64; N] {
     let bb = blockers[sq as usize];
     let mut table = [0u64; N];
     let mut current_mask = bb;
     while current_mask != 0 {
-        table[pext_index(current_mask, bb)] = compute_sliding_attacks(sq, current_mask, offsets);
-        current_mask = current_mask.wrapping_sub(1) & bb
+        table[pext_index(current_mask, bb)] = compute_sliding_attacks(sq, current_mask, &offsets);
+        current_mask = current_mask.wrapping_sub(1) & bb;
     }
 
-    table[0] = compute_sliding_attacks(sq, 0u64, offsets);
+    table[0] = compute_sliding_attacks(sq, 0u64, &offsets);
     table
 }
 
@@ -69,7 +68,7 @@ pub const fn compute_sliding_attacks(sq: u8, blockers: u64, offsets: &[i8]) -> u
             if blockers & mask != 0 {
                 break;
             }
-            to_sq = to_sq.step(offset)
+            to_sq = to_sq.step(offset);
         }
         i += 1;
     }
@@ -81,7 +80,7 @@ fn pext_index(bb: u64, mask: u64) -> usize {
     unsafe { _pext_u64(bb, mask) as usize }
 }
 
-pub const fn compute_blockers(offsets: &[i8; 4]) -> [u64; 64] {
+pub const fn compute_blockers(offsets: [i8; 4]) -> [u64; 64] {
     let mut table = [0u64; 64];
     let mut sq = 0u8;
     while sq < 64 {
@@ -130,11 +129,13 @@ impl Sq88 {
     }
     #[inline(always)]
     pub const fn step(self, offset: i8) -> Sq88 {
-        Sq88(((self.0 as i8).wrapping_add(offset)) as u8)
+        Sq88((self.0 as i8).wrapping_add(offset) as u8)
     }
 }
 
+
 pub const fn compute_between() -> [[u64; 64]; 64] {
+    #[allow(clippy::large_stack_arrays)]
     let mut table = [[0; 64]; 64];
     let mut a = 0_i8;
     while a < 64 {

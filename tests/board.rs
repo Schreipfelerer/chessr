@@ -55,7 +55,7 @@ mod board_tests {
             BoardState::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
                 .unwrap();
         assert_eq!(
-            board.state_info.active_color(),
+            board.state_info.active_color,
             Color::White,
             "active color"
         );
@@ -71,7 +71,7 @@ mod board_tests {
             BoardState::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b - e6 0 1")
                 .unwrap();
         assert_eq!(
-            board.state_info.active_color(),
+            board.state_info.active_color,
             Color::Black,
             "active color"
         );

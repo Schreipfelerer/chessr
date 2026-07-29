@@ -23,21 +23,15 @@ fn main() {
             continue;
         }
 
-        let mut parts = input.trim().split_whitespace();
-        let command = match parts.next() {
-            Some(cmd) => cmd,
-            None => continue,
-        };
+        let mut parts = input.split_whitespace();
+        let Some(command) = parts.next() else { continue };
 
         match command {
             "move" | "m" => {
                 if let Some(move_str) = parts.next() {
-                    let mut m = match Move::from_notation(&game_state, move_str) {
-                        Some(mov) => mov,
-                        None => {
-                            println!("Invalid Move Notation");
-                            continue;
-                        }
+                    let Some(mut m) = Move::from_notation(&game_state, move_str) else {
+                        println!("Invalid Move Notation");
+                        continue;
                     };
 
                     let legal_moves = generate_moves(&game_state);
@@ -47,7 +41,7 @@ fn main() {
                     m = match matching.next() {
                         // TODO differention between Promotions
                         None => {
-                            println!("Move not legal {}", m);
+                            println!("Move not legal {m}");
                             continue;
                         }
                         Some(mov) => *mov,
@@ -67,38 +61,34 @@ fn main() {
                 println!("{}", game_state.board);
             }
             "perft" => {
-                let depth_str = match parts.next() {
-                    Some(dep) => dep,
-                    None => continue,
+                let Some(depth_str) = parts.next() else {
+                    continue;
                 };
-                let depth = match depth_str.parse() {
-                    Ok(d) => d,
-                    Err(_) => continue,
+                let Ok(depth) = depth_str.parse() else {
+                    continue;
                 };
                 perft(&mut game_state, depth);
                 break;
             }
             "perftd" => {
-                let depth_str = match parts.next() {
-                    Some(dep) => dep,
-                    None => continue,
+                let Some(depth_str) = parts.next() else {
+                    continue;
                 };
-                let depth = match depth_str.parse() {
-                    Ok(d) => d,
-                    Err(_) => continue,
+                let Ok(depth) = depth_str.parse() else {
+                    continue;
                 };
                 perft_devide(&mut game_state, depth);
             }
             "undo" => match undo {
                 None => println!("Nothing to Undo"),
                 Some(u) => {
-                    game_state.undo_move(u);
+                    game_state.undo_move(&u);
                     undo = None;
                     println!("{}", game_state.board);
                 }
             },
             "quit" | "exit" => break,
-            _ => println!("Unknown command: {}", command),
+            _ => println!("Unknown command: {command}"),
         }
     }
 }

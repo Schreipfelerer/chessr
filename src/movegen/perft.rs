@@ -7,10 +7,7 @@ pub fn perft(board_state: &mut BoardState, max_depth: u8) {
         let moves = count_moves(board_state, depth);
         let duration = start.elapsed();
 
-        println!(
-            "perft with depth {}: {:?}, moves: {}",
-            depth, duration, moves
-        );
+        println!("perft with depth {depth}: {duration:?}, moves: {moves}");
     }
 }
 
@@ -19,11 +16,11 @@ pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
     for m in generate_moves(board_state) {
         let undo = board_state.make_move(m);
         let moves = count_moves(board_state, depth - 1);
-        println!("  {}: {} moves", m, moves);
+        println!("  {m}: {moves} moves");
         total += moves;
-        board_state.undo_move(undo);
+        board_state.undo_move(&undo);
     }
-    println!("Total moves: {}", total)
+    println!("Total moves: {total}");
 }
 
 pub fn count_moves(board_state: &mut BoardState, depth: u8) -> u32 {
@@ -38,7 +35,7 @@ pub fn count_moves(board_state: &mut BoardState, depth: u8) -> u32 {
     for m in moves {
         let undo = board_state.make_move(m);
         move_count += count_moves(board_state, depth - 1);
-        board_state.undo_move(undo);
+        board_state.undo_move(&undo);
     }
     move_count
 }
