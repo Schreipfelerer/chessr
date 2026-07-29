@@ -40,28 +40,26 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
     let c = state_info.active_color();
     let mut moves = ArrayVec::new();
 
-    let attacked: u64 = compute_attacked(board, c);
     let checkers: u64 = compute_checkers(board, c);
-    let pinned: ArrayVec<(Sq64, u64), 8> = compute_pins(board, c);
 
     match checkers.count_ones() {
         0 => {
+            let pinned: ArrayVec<(Sq64, u64), 8> = compute_pins(board, c);
             let bb = !0u64;
-            generate_all(board, state_info, c, &mut moves, attacked, pinned, bb, true);
+            generate_all(board, state_info, c, &mut moves, pinned, bb, true);
         }
         1 => {
+            let pinned: ArrayVec<(Sq64, u64), 8> = compute_pins(board, c);
             // Only inbetween or attacker or king moves
             let king_sq = board.find_king(c);
             let attacker_sq = checkers.trailing_zeros();
             let bb = BETWEEN[king_sq.0 as usize][attacker_sq as usize] | checkers;
-            generate_all(
-                board, state_info, c, &mut moves, attacked, pinned, bb, false,
-            );
+            generate_all(board, state_info, c, &mut moves, pinned, bb, false);
         }
         _ => {
             // Only King Movements
             let sq = board.find_king(c);
-            generate_king_moves(board, sq, c, &mut moves, attacked);
+            generate_king_moves(board, sq, c, &mut moves);
         }
     }
     moves
@@ -72,7 +70,6 @@ fn generate_all(
     state_info: &StateInfo,
     c: Color,
     moves: &mut ArrayVec<Move, 256>,
-    attacked: u64,
     pinned: ArrayVec<(Sq64, u64), 8>,
     bb: u64,
     allow_castle: bool,
@@ -93,9 +90,9 @@ fn generate_all(
                 generate_sliding_moves(board, from_sq, c, moves, Piece::Rook, bb);
             }
             Piece::King => {
-                generate_king_moves(board, from_sq, c, moves, attacked);
+                generate_king_moves(board, from_sq, c, moves);
                 if allow_castle {
-                    generate_castles(board, from_sq, c, moves, state_info, attacked);
+                    generate_castles(board, from_sq, c, moves, state_info);
                 }
             }
         }
@@ -146,23 +143,6 @@ fn compute_checkers(board: &Board, c: Color) -> u64 {
     bb
 }
 
-fn compute_attacked(board: &Board, c: Color) -> u64 {
-    let mut bb = 0;
-    for sq in BitboardIter(board.get_enemy_occupancy(c)) {
-        let sq_ind = sq.0 as usize;
-        let bb_no_king = board.get_occupany() ^ board.get_piece_bitboard(c, Piece::King);
-        bb |= match board.get_piece_at(sq) {
-            Piece::Pawn => PAWN_ATTACKS[c.flip() as usize][sq_ind],
-            Piece::Knight => KNIGHT_ATTACKS[sq_ind],
-            Piece::Bishop => get_bishop_moves(sq, bb_no_king),
-            Piece::Rook => get_rook_moves(sq, bb_no_king),
-            Piece::Queen => get_bishop_moves(sq, bb_no_king) | get_rook_moves(sq, bb_no_king),
-            Piece::King => KING_ATTACKS[sq_ind],
-        }
-    }
-    bb
-}
-
 fn generate_knight_moves(
     board: &Board,
     from_sq: Sq64,
@@ -179,10 +159,23 @@ fn generate_king_moves(
     from_sq: Sq64,
     color: Color,
     moves: &mut ArrayVec<Move, 256>,
-    attacked: u64,
 ) {
-    let bb = KING_ATTACKS[from_sq.0 as usize] & !attacked;
-    generate_moves_bb(board, from_sq, bb, color, moves);
+    let bb = KING_ATTACKS[from_sq.0 as usize] & !board.get_friendly_occupancy(color);
+    if bb != 0 {
+        let occ_no_king = board.get_occupany() & !board.get_piece_bitboard(color, Piece::King);
+        let cbb = bb & board.get_enemy_occupancy(color);
+        let qbb = bb & !board.get_enemy_occupancy(color);
+        for to_sq in BitboardIter(qbb) {
+            if !is_attacked(board, to_sq, color.flip(), occ_no_king) {
+                moves.push(Move::new(from_sq, to_sq));
+            }
+        }
+        for to_sq in BitboardIter(cbb) {
+            if !is_attacked(board, to_sq, color.flip(), occ_no_king) {
+                moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::Capture));
+            }
+        }
+    }
 }
 
 pub fn generate_sliding_moves(
@@ -294,7 +287,7 @@ pub fn generate_pawn_moves(
         if bb & valid_destinations != 0 {
             // Check for double pin EdgeCase
             let king_sq = board.find_king(c);
-            //Prefilter if king is in smae row
+            //Prefilter if king is in same row
             if king_sq.rank() == from_square.rank() {
                 let mask = from_square.mask() | pawn_sq.mask();
                 let occupancy = board.get_occupany() & !mask;
@@ -323,29 +316,49 @@ pub fn generate_castles(
     c: Color,
     moves: &mut ArrayVec<Move, 256>,
     state_info: &StateInfo,
-    attacked: u64,
 ) {
     //Check Short Castle
     if state_info.has_castle_rights(c, true) {
         let path_unoccupied = (board.get_occupany() & 0b110 << from_sq.0) == 0; // Pieces Between
-        let path_safe = (attacked & 0b111 << from_sq.0) == 0; // King aswell
 
-        if path_unoccupied && path_safe {
-            let to_sq = Sq64(from_sq.0 + 2);
-            moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::CastleKingside));
+        if path_unoccupied {
+            if !is_attacked(board, Sq64(from_sq.0 + 1), c.flip(), board.get_occupany()) {
+                if !is_attacked(board, Sq64(from_sq.0 + 2), c.flip(), board.get_occupany()) {
+                    let to_sq = Sq64(from_sq.0 + 2);
+                    moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::CastleKingside));
+                }
+            }
         }
     }
 
     //Check Long Castle
     if state_info.has_castle_rights(c, false) {
         let path_unoccupied = (board.get_occupany() & 0b111 << from_sq.0 - 3) == 0;
-        let path_safe = (attacked & 0b111 << from_sq.0 - 2) == 0; // King aswell
-
-        if path_unoccupied && path_safe {
-            let to_sq = Sq64(from_sq.0 - 2);
-            moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::CastleQueenside));
+        if path_unoccupied {
+            if !is_attacked(board, Sq64(from_sq.0 - 1), c.flip(), board.get_occupany()) {
+                if !is_attacked(board, Sq64(from_sq.0 - 2), c.flip(), board.get_occupany()) {
+                    let to_sq = Sq64(from_sq.0 - 2);
+                    moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::CastleQueenside));
+                }
+            }
         }
     }
+}
+
+fn is_attacked(board: &Board, sq: Sq64, by_color: Color, occ_no_king: u64) -> bool {
+    (KNIGHT_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(by_color, Piece::Knight)) != 0
+        || (KING_ATTACKS[sq.0 as usize] & board.get_piece_bitboard(by_color, Piece::King)) != 0
+        || (PAWN_ATTACKS[by_color.flip() as usize][sq.0 as usize]
+            & board.get_piece_bitboard(by_color, Piece::Pawn))
+            != 0
+        || (get_bishop_moves(sq, occ_no_king)
+            & (board.get_piece_bitboard(by_color, Piece::Bishop)
+                | board.get_piece_bitboard(by_color, Piece::Queen)))
+            != 0
+        || (get_rook_moves(sq, occ_no_king)
+            & (board.get_piece_bitboard(by_color, Piece::Rook)
+                | board.get_piece_bitboard(by_color, Piece::Queen)))
+            != 0
 }
 
 pub struct BitboardIter(pub u64);
