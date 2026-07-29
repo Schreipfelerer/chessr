@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod perft_tests {
-    use chessr::{board::BoardState, movegen::perft::count_moves};
+    use chessr::{board::BoardState, movegen::count_moves};
 
     struct FenTest<'a> {
         fen: &'a str,
@@ -35,9 +35,9 @@ mod perft_tests {
     fn pos_wiki() {
         FenTest {
             fen: "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 0",
-            depth: 3,
-            actual_moves: 97_862,
-            explanation: "Pos 2",
+            depth: 4,
+            actual_moves: 4_085_603,
+            explanation: "Kiwipete pos (Pos 2)",
         }
         .test();
         FenTest {

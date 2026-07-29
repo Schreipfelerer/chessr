@@ -2,10 +2,7 @@ use std::io::{self, BufRead};
 
 use chessr::{
     board::{BoardState, Move, Undo},
-    movegen::{
-        generate::generate_moves,
-        perft::{perft, perft_devide},
-    },
+    movegen::{generate_moves, perft, perft_devide},
 };
 
 const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -24,7 +21,9 @@ fn main() {
         }
 
         let mut parts = input.split_whitespace();
-        let Some(command) = parts.next() else { continue };
+        let Some(command) = parts.next() else {
+            continue;
+        };
 
         match command {
             "move" | "m" => {
