@@ -1,14 +1,5 @@
-use std::{
-    fmt,
-    ops::{Add, Sub},
-};
-
-#[derive(Debug)]
-pub struct Board {
-    pieces: [[u64; 6]; 2], // [Color, PieceType]
-    occupancy: [u64; 3],   // [White, Black, Both]
-    mailbox: [Option<Piece>; 64],
-}
+use crate::board::{Board, BoardState, Color, FenErr, Move, MoveFlag, Piece, Sq64, StateInfo, Undo};
+use std::fmt;
 
 impl Board {
     pub fn from_fen_part(fen_part: &str) -> Result<Self, FenErr> {
@@ -50,18 +41,18 @@ impl Board {
             return Err(FenErr::InvalidRankCount);
         }
 
-        let mut occupancies: [u64; 3] = [0, 0, 0];
+        let mut occupancy: [u64; 3] = [0, 0, 0];
         for color in Color::ALL {
             for piece in Piece::ALL {
-                occupancies[color as usize] |= pieces[color as usize][piece as usize];
+                occupancy[color as usize] |= pieces[color as usize][piece as usize];
             }
         }
-        occupancies[2] = occupancies[0] | occupancies[1];
+        occupancy[2] = occupancy[0] | occupancy[1];
 
         Ok(Self {
-            pieces: pieces,
-            occupancy: occupancies,
-            mailbox: mailbox,
+            pieces,
+            occupancy,
+            mailbox,
         })
     }
     pub fn get_piece_bitboard(&self, color: Color, piece: Piece) -> u64 {
@@ -95,7 +86,7 @@ impl Board {
     fn get_piece_visual(&self, rank: u8, file: u8) -> char {
         let sq = file + rank * 8;
         let bit = 1u64 << sq;
-        if self.get_occupancy() & bit == 0 {
+        if self.occ() & bit == 0 {
             return '.';
         }
         let mut char = match self.get_piece_at(Sq64(sq)) {
@@ -117,15 +108,15 @@ impl Board {
         Sq64(bb.trailing_zeros() as u8)
     }
 
-    pub fn get_friendly_occupancy(&self, c: Color) -> u64 {
+    pub fn occ_friendly(&self, c: Color) -> u64 {
         self.occupancy[c as usize]
     }
 
-    pub fn get_enemy_occupancy(&self, c: Color) -> u64 {
+    pub fn occ_enemy(&self, c: Color) -> u64 {
         self.occupancy[c.flip() as usize]
     }
 
-    pub fn get_occupancy(&self) -> u64 {
+    pub fn occ(&self) -> u64 {
         self.occupancy[2]
     }
 }
@@ -143,12 +134,6 @@ impl fmt::Display for Board {
         }
         writeln!(f, "   a b c d e f g h ")
     }
-}
-
-#[derive(Debug)]
-pub struct BoardState {
-    pub board: Board,
-    pub state_info: StateInfo,
 }
 
 impl BoardState {
@@ -286,79 +271,6 @@ impl BoardState {
     }
 }
 
-pub struct Undo {
-    r#move: Move,
-    captured_piece: Option<Piece>,
-    prev_halfmove_clock: u8,
-    prev_castling_rights: u8,
-    prev_ep_square: Option<Sq64>,
-}
-
-impl Undo {
-    pub fn new(m: Move, state_info: &StateInfo) -> Self {
-        Self {
-            r#move: m,
-            captured_piece: None,
-            prev_halfmove_clock: state_info.half_move_clock,
-            prev_castling_rights: state_info.castle_rights,
-            prev_ep_square: state_info.ep_square,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum FenErr {
-    InvalidFormat,               // Doesnt have exaktly 6 Spaces
-    InvalidCharInPiecePlacement, // Illeagal Piece in Placement
-    InvalidRankLength,           // Each Rankmust have 8 pieces
-    InvalidRankCount,            // Must have 8 ranks
-    InvalidSideToMove,           // Side to Move must be 'w' or 'b'
-    InvalidHalfmoveClock,        // HalfMoveClock should be 0..49
-    InvalidFullmoveNumber,       // FullMoveNumber should be a number
-    InvalidSquare,               // EnPassantSquare should be -/[a-h][3/6]
-    InvalidCastleRights,         // Castle Rights should be -/[KQkq](1..4)
-}
-
-fn square_from_algebratic(s: &str) -> Result<Sq64, FenErr> {
-    let [file, rank] = s.as_bytes() else {
-        return Err(FenErr::InvalidSquare);
-    };
-
-    if !(b'a'..=b'h').contains(file) || !(b'1'..b'8').contains(rank) {
-        return Err(FenErr::InvalidSquare);
-    }
-    let file = file - b'a';
-    let rank = rank - b'1';
-    Ok(Sq64(rank * 8 + file))
-}
-
-fn castle_rights(rights: &str) -> Result<u8, FenErr> {
-    if rights == "-" {
-        return Ok(0);
-    }
-
-    let mut cr = 0;
-    for c in rights.as_bytes() {
-        match c {
-            b'K' => cr |= 8,
-            b'Q' => cr |= 4,
-            b'k' => cr |= 2,
-            b'q' => cr |= 1,
-            _ => return Err(FenErr::InvalidCastleRights),
-        }
-    }
-    Ok(cr)
-}
-
-#[derive(Debug)]
-pub struct StateInfo {
-    pub castle_rights: u8, // Bit 0-3 Unused, White Short, White Long, Black Short, Black Long
-    pub is_whites_turn: bool,
-    pub half_move_clock: u8,
-    pub full_move_number: u32,
-    pub ep_square: Option<Sq64>,
-}
-
 impl StateInfo {
     pub fn from_fen(fen_parts: &[&str]) -> Result<Self, FenErr> {
         Ok(Self {
@@ -412,270 +324,33 @@ impl StateInfo {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(u8)]
-pub enum Color {
-    White = 0,
-    Black = 1,
+fn castle_rights(rights: &str) -> Result<u8, FenErr> {
+    if rights == "-" {
+        return Ok(0);
+    }
+
+    let mut cr = 0;
+    for c in rights.as_bytes() {
+        match c {
+            b'K' => cr |= 8,
+            b'Q' => cr |= 4,
+            b'k' => cr |= 2,
+            b'q' => cr |= 1,
+            _ => return Err(FenErr::InvalidCastleRights),
+        }
+    }
+    Ok(cr)
 }
 
-impl Color {
-    pub const ALL: [Color; 2] = [Color::White, Color::Black];
-    pub fn flip(self) -> Color {
-        match self {
-            Color::Black => Color::White,
-            Color::White => Color::Black,
-        }
-    }
-}
+fn square_from_algebratic(s: &str) -> Result<Sq64, FenErr> {
+    let [file, rank] = s.as_bytes() else {
+        return Err(FenErr::InvalidSquare);
+    };
 
-impl Into<Color> for bool {
-    fn into(self) -> Color {
-        match self {
-            false => Color::White,
-            true => Color::Black,
-        }
+    if !(b'a'..=b'h').contains(file) || !(b'1'..b'8').contains(rank) {
+        return Err(FenErr::InvalidSquare);
     }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(u8)]
-pub enum Piece {
-    Pawn = 0,
-    Knight = 1,
-    Bishop = 2,
-    Rook = 3,
-    Queen = 4,
-    King = 5,
-}
-
-impl Piece {
-    pub const ALL: [Piece; 6] = [
-        Piece::Pawn,
-        Piece::Knight,
-        Piece::Bishop,
-        Piece::Rook,
-        Piece::Queen,
-        Piece::King,
-    ];
-    pub const PROMOTABLE: [Piece; 4] = [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen];
-}
-
-// Bit 0-5 Source Square
-// Bit 6-11 Target Square
-// Bit 12-15 Special Flags (Promotion Flag, Castle Flag, Special Flags)
-// 0000: Quiet move
-// 0001: Double pawn push
-// 0010: King castle / 0011: Queen castle
-// 0100: Capture
-// 0101: EP capture
-// 1000–1011: Promotions (Knight, Bishop, Rook, Queen)
-// 1100–1111: Capture + Promotions (Knight, Bishop, Rook, Queen)
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Move(pub u16);
-
-impl Move {
-    #[inline(always)]
-    pub fn new(from: Sq64, to: Sq64) -> Self {
-        Move((from.0 as u16) | ((to.0 as u16) << 6))
-    }
-
-    #[inline(always)]
-    pub fn new_flags(from: Sq64, to: Sq64, flags: MoveFlag) -> Self {
-        Move((from.0 as u16) | ((to.0 as u16) << 6) | ((flags as u16) << 12))
-    }
-
-    #[inline(always)]
-    pub fn flags(self) -> MoveFlag {
-        unsafe { std::mem::transmute::<u8, MoveFlag>((self.0 >> 12) as u8) }
-    }
-    #[inline(always)]
-    pub fn target(self) -> Sq64 {
-        Sq64(((self.0 >> 6) & 0x3F) as u8)
-    }
-    #[inline(always)]
-    pub fn source(self) -> Sq64 {
-        Sq64((self.0 & 0x3F) as u8)
-    }
-
-    pub fn from_notation(bs: &BoardState, notation: &str) -> Option<Self> {
-        let color = bs.state_info.active_color();
-        if notation == "0-0" {
-            return Some(match color {
-                Color::White => Move(4 | 6 << 6 | 2 << 12),
-                Color::Black => Move(60 | 62 << 6 | 2 << 12),
-            });
-        }
-        if notation == "0-0-0" {
-            return Some(match color {
-                Color::White => Move(4 | 2 << 6 | 3 << 12),
-                Color::Black => Move(60 | 58 << 6 | 3 << 12),
-            });
-        }
-
-        let bytes = notation.as_bytes();
-
-        if bytes.len() != 4 && bytes.len() != 6 {
-            return None;
-        }
-
-        let mut flag = 0;
-        if bytes.len() == 6 {
-            flag = match (bytes[4], bytes[5]) {
-                (b'=', b'N' | b'K') => 8,
-                (b'=', b'B') => 9,
-                (b'=', b'R') => 10,
-                (b'=', b'Q') => 11,
-                (b'e', b'P') => 5,
-                _ => return None,
-            };
-        }
-
-        let from_sq = Sq64::from_notation(&bytes[..2])?;
-        let to_sq = Sq64::from_notation(&bytes[2..4])?;
-
-        if bs.board.is_occupied_enemy(to_sq, color) {
-            flag += 4
-        }
-        Some(Move(from_sq.0 as u16 | (to_sq.0 as u16) << 6 | flag << 12))
-    }
-}
-
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MoveFlag {
-    Quiet = 0,
-    DoublePawnPush = 1,
-    CastleKingside = 2,
-    CastleQueenside = 3,
-    Capture = 4,
-    EnPassant = 5,
-    PromoKnight = 8,
-    PromoBishop = 9,
-    PromoRook = 10,
-    PromoQueen = 11,
-    PromoKnightCapture = 12,
-    PromoBishopCapture = 13,
-    PromoRookCapture = 14,
-    PromoQueenCapture = 15,
-}
-
-impl MoveFlag {
-    pub const fn new_promotion(p: Piece) -> Self {
-        match p {
-            Piece::Knight => MoveFlag::PromoKnight,
-            Piece::Bishop => MoveFlag::PromoBishop,
-            Piece::Rook => MoveFlag::PromoRook,
-            Piece::Queen => MoveFlag::PromoQueen,
-            _ => unreachable!(),
-        }
-    }
-    pub const fn new_promotion_capture(p: Piece) -> Self {
-        match p {
-            Piece::Knight => MoveFlag::PromoKnightCapture,
-            Piece::Bishop => MoveFlag::PromoBishopCapture,
-            Piece::Rook => MoveFlag::PromoRookCapture,
-            Piece::Queen => MoveFlag::PromoQueenCapture,
-            _ => unreachable!(),
-        }
-    }
-    #[inline(always)]
-    pub const fn is_promotion(self) -> bool {
-        (self as u8) & 8 != 0
-    }
-    #[inline(always)]
-    pub const fn is_capture(self) -> bool {
-        (self as u8) & 4 != 0
-    }
-    pub const fn promoted_piece(self) -> Piece {
-        match (self as u8) & 3 {
-            0 => Piece::Knight,
-            1 => Piece::Bishop,
-            2 => Piece::Rook,
-            3 => Piece::Queen,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl fmt::Display for Move {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.source(), self.target())?;
-        if self.flags().is_promotion() {
-            let promo_string = match self.flags().promoted_piece() {
-                Piece::Knight => "n",
-                Piece::Bishop => "b",
-                Piece::Rook => "r",
-                Piece::Queen => "q",
-                _ => unreachable!(),
-            };
-            write!(f, "{}", promo_string)?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Sq64(pub u8);
-impl Sq64 {
-    #[inline(always)]
-    pub fn from_notation(notation: &[u8]) -> Option<Self> {
-        if notation.len() != 2 {
-            return None;
-        }
-        if !(b'a'..=b'h').contains(&notation[0]) {
-            return None;
-        }
-        if !(b'1'..=b'8').contains(&notation[1]) {
-            return None;
-        }
-        Some(Sq64(notation[0] - b'a' + ((notation[1] - b'1') * 8)))
-    }
-    #[inline(always)]
-    pub fn rank(self) -> u8 {
-        self.0 >> 3
-    }
-    #[inline(always)]
-    pub fn file(self) -> u8 {
-        self.0 & 7
-    }
-    #[inline(always)]
-    pub fn mask(self) -> u64 {
-        1 << self.0
-    }
-    #[inline(always)]
-    pub fn is_on_bb(self, bb: u64) -> bool {
-        bb >> self.0 & 1 == 1
-    }
-    #[inline(always)]
-    pub fn ind(self) -> usize {
-        self.0 as usize
-    }
-}
-impl Add<i8> for Sq64 {
-    type Output = Self;
-
-    #[inline(always)]
-    fn add(self, rhs: i8) -> Self::Output {
-        Sq64(self.0.wrapping_add_signed(rhs))
-    }
-}
-impl Sub<i8> for Sq64 {
-    type Output = Self;
-
-    #[inline(always)]
-    fn sub(self, rhs: i8) -> Self::Output {
-        Sq64(self.0.wrapping_sub_signed(rhs))
-    }
-}
-
-impl fmt::Display for Sq64 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}{}",
-            (b'a' + self.file()) as char,
-            (b'1' + self.rank()) as char
-        )
-    }
+    let file = file - b'a';
+    let rank = rank - b'1';
+    Ok(Sq64(rank * 8 + file))
 }
