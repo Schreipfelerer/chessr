@@ -76,6 +76,7 @@ fn main() {
                     Err(_) => continue,
                 };
                 perft(&mut game_state, depth);
+                break;
             }
             "perftd" => {
                 let depth_str = match parts.next() {
