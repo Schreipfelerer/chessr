@@ -20,10 +20,10 @@ impl Board {
             match c {
                 '/' => {
                     if file != 8 {
-                        return Err(FenErr::InvaidRankLength);
+                        return Err(FenErr::InvalidRankLength);
                     }
                     file = 0;
-                    rank = rank.checked_sub(1).ok_or(FenErr::InvaidRankCount)?;
+                    rank = rank.checked_sub(1).ok_or(FenErr::InvalidRankCount)?;
                 }
                 '1'..='8' => file += c.to_digit(10).unwrap(),
                 _ => {
@@ -44,10 +44,10 @@ impl Board {
             }
         }
         if file != 8 {
-            return Err(FenErr::InvaidRankLength);
+            return Err(FenErr::InvalidRankLength);
         }
         if rank != 0 {
-            return Err(FenErr::InvaidRankCount);
+            return Err(FenErr::InvalidRankCount);
         }
 
         let mut occupancies: [u64; 3] = [0, 0, 0];
@@ -95,12 +95,12 @@ impl Board {
     fn get_piece_visual(&self, rank: u8, file: u8) -> char {
         let sq = file + rank * 8;
         let bit = 1u64 << sq;
-        if self.get_occupany() & bit == 0 {
+        if self.get_occupancy() & bit == 0 {
             return '.';
         }
         let mut char = match self.get_piece_at(Sq64(sq)) {
             Piece::Pawn => 'P',
-            Piece::Knight => 'K',
+            Piece::Knight => 'N',
             Piece::Bishop => 'B',
             Piece::Rook => 'R',
             Piece::Queen => 'Q',
@@ -125,7 +125,7 @@ impl Board {
         self.occupancy[c.flip() as usize]
     }
 
-    pub fn get_occupany(&self) -> u64 {
+    pub fn get_occupancy(&self) -> u64 {
         self.occupancy[2]
     }
 }
@@ -310,8 +310,8 @@ impl Undo {
 pub enum FenErr {
     InvalidFormat,               // Doesnt have exaktly 6 Spaces
     InvalidCharInPiecePlacement, // Illeagal Piece in Placement
-    InvaidRankLength,            // Each Rankmust have 8 pieces
-    InvaidRankCount,             // Must have 8 ranks
+    InvalidRankLength,           // Each Rankmust have 8 pieces
+    InvalidRankCount,            // Must have 8 ranks
     InvalidSideToMove,           // Side to Move must be 'w' or 'b'
     InvalidHalfmoveClock,        // HalfMoveClock should be 0..49
     InvalidFullmoveNumber,       // FullMoveNumber should be a number

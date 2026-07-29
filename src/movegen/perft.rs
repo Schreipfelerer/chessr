@@ -4,7 +4,7 @@ use std::time::Instant;
 pub fn perft(board_state: &mut BoardState, max_depth: u8) {
     for depth in 1..=max_depth {
         let start = Instant::now();
-        let moves = number_of_moves(board_state, depth);
+        let moves = count_moves(board_state, depth);
         let duration = start.elapsed();
 
         println!(
@@ -18,7 +18,7 @@ pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
     let mut total = 0;
     for m in generate_moves(board_state) {
         let undo = board_state.make_move(m);
-        let moves = number_of_moves(board_state, depth - 1);
+        let moves = count_moves(board_state, depth - 1);
         println!("  {}: {} moves", m, moves);
         total += moves;
         board_state.undo_move(undo);
@@ -26,19 +26,19 @@ pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
     println!("Total moves: {}", total)
 }
 
-pub fn number_of_moves(board_state: &mut BoardState, depth: u8) -> u32 {
+pub fn count_moves(board_state: &mut BoardState, depth: u8) -> u32 {
     if depth == 0 {
         return 1;
     }
-    let mut move_nunmber = 0;
+    let mut move_count = 0;
     let moves = generate_moves(board_state);
     if depth == 1 {
         return moves.len() as u32;
     }
     for m in moves {
         let undo = board_state.make_move(m);
-        move_nunmber += number_of_moves(board_state, depth - 1);
+        move_count += count_moves(board_state, depth - 1);
         board_state.undo_move(undo);
     }
-    move_nunmber
+    move_count
 }

@@ -1,6 +1,8 @@
 use crate::{
     board::{Board, BoardState, Color, Move, MoveFlag, Piece, Sq64, StateInfo},
-    movegen::consts::{BETWEEN, KING_ATTACKS, KNIGHT_ATTACKS, PAWN_ATTACKS, get_bishop_moves, get_rook_moves},
+    movegen::consts::{
+        BETWEEN, KING_ATTACKS, KNIGHT_ATTACKS, PAWN_ATTACKS, get_bishop_moves, get_rook_moves,
+    },
 };
 use arrayvec::ArrayVec;
 
@@ -102,10 +104,10 @@ fn compute_checkers(board: &Board, c: Color) -> u64 {
     let co = c.flip();
     bb |= PAWN_ATTACKS[c as usize][sq.ind()] & board.get_piece_bitboard(co, Piece::Pawn);
     bb |= KNIGHT_ATTACKS[sq.ind()] & board.get_piece_bitboard(co, Piece::Knight);
-    bb |= get_bishop_moves(sq, board.get_occupany())
+    bb |= get_bishop_moves(sq, board.get_occupancy())
         & (board.get_piece_bitboard(co, Piece::Bishop)
             | board.get_piece_bitboard(co, Piece::Queen));
-    bb |= get_rook_moves(sq, board.get_occupany())
+    bb |= get_rook_moves(sq, board.get_occupancy())
         & (board.get_piece_bitboard(co, Piece::Rook) | board.get_piece_bitboard(co, Piece::Queen));
     bb
 }
@@ -129,7 +131,7 @@ fn generate_king_moves(
 ) {
     let bb = KING_ATTACKS[from_sq.ind()] & !board.get_friendly_occupancy(color);
     if bb != 0 {
-        let occ_no_king = board.get_occupany() & !board.get_piece_bitboard(color, Piece::King);
+        let occ_no_king = board.get_occupancy() & !board.get_piece_bitboard(color, Piece::King);
         let cbb = bb & board.get_enemy_occupancy(color);
         let qbb = bb & !board.get_enemy_occupancy(color);
         for to_sq in BitboardIter(qbb) {
@@ -154,8 +156,8 @@ pub fn generate_sliding_moves(
     valid_destinations: u64,
 ) {
     let bb = match p {
-        Piece::Rook => get_rook_moves(sq, board.get_occupany()),
-        Piece::Bishop => get_bishop_moves(sq, board.get_occupany()),
+        Piece::Rook => get_rook_moves(sq, board.get_occupancy()),
+        Piece::Bishop => get_bishop_moves(sq, board.get_occupancy()),
         _ => unreachable!(),
     };
     generate_moves_bb(board, sq, bb & valid_destinations, c, moves);
@@ -187,8 +189,8 @@ pub fn batch_generate_pawn_moves(
     state_info: &StateInfo,
     valid_destinations: u64,
 ) {
-    if pawn_bb.count_ones() <= 1{
-        for pawn_sq in BitboardIter(pawn_bb){
+    if pawn_bb.count_ones() <= 1 {
+        for pawn_sq in BitboardIter(pawn_bb) {
             generate_pawn_moves(board, pawn_sq, c, moves, state_info, valid_destinations);
         }
         return;
@@ -197,10 +199,10 @@ pub fn batch_generate_pawn_moves(
     const FILE_A: u64 = 0x0101010101010101;
     const FILE_H: u64 = 0x8080808080808080;
 
-    let empty = !board.get_occupany();
-    let empty_valid = !board.get_occupany() & valid_destinations;
+    let empty = !board.get_occupancy();
+    let empty_valid = !board.get_occupancy() & valid_destinations;
     let occ_enem_valid = board.get_enemy_occupancy(c) & valid_destinations;
-    let push_dir = match c {
+    let rotate_shift = match c {
         Color::White => 8,
         Color::Black => 56,
     };
@@ -208,21 +210,21 @@ pub fn batch_generate_pawn_moves(
         Color::White => 8,
         Color::Black => -8,
     };
-    let push_bb = pawn_bb & empty_valid.rotate_right(push_dir);
+    let push_bb = pawn_bb & empty_valid.rotate_right(rotate_shift);
     let doublepush_bb = pawn_bb
-        & BASE_RANKS.rotate_left(push_dir)
-        & empty.rotate_right(push_dir)
-        & empty_valid.rotate_right(push_dir * 2);
-    let cap_left = pawn_bb & !FILE_A & occ_enem_valid.rotate_right(push_dir - 1);
-    let cap_right = pawn_bb & !FILE_H & occ_enem_valid.rotate_right(push_dir + 1);
+        & BASE_RANKS.rotate_left(rotate_shift)
+        & empty.rotate_right(rotate_shift)
+        & empty_valid.rotate_right(rotate_shift * 2);
+    let cap_left = pawn_bb & !FILE_A & occ_enem_valid.rotate_right(rotate_shift - 1);
+    let cap_right = pawn_bb & !FILE_H & occ_enem_valid.rotate_right(rotate_shift + 1);
 
-    let prom_rank = BASE_RANKS.rotate_right(push_dir);
+    let prom_rank = BASE_RANKS.rotate_right(rotate_shift);
     let n_prom_rank = !prom_rank;
 
     for push_sq in BitboardIter(push_bb & n_prom_rank) {
         moves.push(Move::new(push_sq, push_sq + push_delta));
     }
-    for double_push_sq in BitboardIter(doublepush_bb & BASE_RANKS.rotate_left(push_dir)) {
+    for double_push_sq in BitboardIter(doublepush_bb & BASE_RANKS.rotate_left(rotate_shift)) {
         moves.push(Move::new_flags(
             double_push_sq,
             double_push_sq + (push_delta * 2),
@@ -394,7 +396,7 @@ fn generate_ep_moves(
             //Prefilter if king is in same row
             if king_sq.rank() == from_square.rank() {
                 let mask = from_square.mask() | pawn_sq.mask();
-                let occupancy = board.get_occupany() & !mask;
+                let occupancy = board.get_occupancy() & !mask;
 
                 if get_rook_moves(king_sq, occupancy)
                     & (board.get_piece_bitboard(c.flip(), Piece::Rook)
@@ -423,11 +425,11 @@ pub fn generate_castles(
 ) {
     //Check Short Castle
     if state_info.has_castle_rights(c, true) {
-        let path_unoccupied = (board.get_occupany() & 0b110 << from_sq.0) == 0; // Pieces Between
+        let path_unoccupied = (board.get_occupancy() & 0b110 << from_sq.0) == 0; // Pieces Between
 
         if path_unoccupied {
-            if !is_attacked(board, from_sq + 1, c.flip(), board.get_occupany()) {
-                if !is_attacked(board, from_sq + 2, c.flip(), board.get_occupany()) {
+            if !is_attacked(board, from_sq + 1, c.flip(), board.get_occupancy()) {
+                if !is_attacked(board, from_sq + 2, c.flip(), board.get_occupancy()) {
                     let to_sq = from_sq + 2;
                     moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::CastleKingside));
                 }
@@ -437,10 +439,10 @@ pub fn generate_castles(
 
     //Check Long Castle
     if state_info.has_castle_rights(c, false) {
-        let path_unoccupied = (board.get_occupany() & 0b111 << from_sq.0 - 3) == 0;
+        let path_unoccupied = (board.get_occupancy() & 0b111 << from_sq.0 - 3) == 0;
         if path_unoccupied {
-            if !is_attacked(board, from_sq - 1, c.flip(), board.get_occupany()) {
-                if !is_attacked(board, from_sq - 2, c.flip(), board.get_occupany()) {
+            if !is_attacked(board, from_sq - 1, c.flip(), board.get_occupancy()) {
+                if !is_attacked(board, from_sq - 2, c.flip(), board.get_occupancy()) {
                     let to_sq = from_sq - 2;
                     moves.push(Move::new_flags(from_sq, to_sq, MoveFlag::CastleQueenside));
                 }

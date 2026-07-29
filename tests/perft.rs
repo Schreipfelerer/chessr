@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod perft_tests {
-    use chessr::{board::BoardState, movegen::perft::number_of_moves};
+    use chessr::{board::BoardState, movegen::perft::count_moves};
 
     struct FenTest<'a> {
         fen: &'a str,
@@ -12,7 +12,7 @@ mod perft_tests {
         fn test(self) {
             let mut board = BoardState::from_fen(self.fen).unwrap();
             assert_eq!(
-                number_of_moves(&mut board, self.depth),
+                count_moves(&mut board, self.depth),
                 self.actual_moves,
                 "{}",
                 self.explanation
