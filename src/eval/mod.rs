@@ -5,7 +5,6 @@ const KNIGHT_VALUE: i32 = 3200;
 const BISHOP_VALUE: i32 = 3300;
 const ROOK_VALUE: i32 = 5000;
 const QUEEN_VALUE: i32 = 9000;
-
 pub fn eval(board_state: &BoardState) -> i32 {
     let board = &board_state.board;
     let score = count_material(board, Color::White) - count_material(board, Color::Black);
