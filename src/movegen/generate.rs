@@ -217,6 +217,12 @@ pub fn batch_generate_pawn_moves(
     state_info: &StateInfo,
     valid_destinations: u64,
 ) {
+    if pawn_bb.count_ones() <= 1{
+        for pawn_sq in BitboardIter(pawn_bb){
+            generate_pawn_moves(board, pawn_sq, c, moves, state_info, valid_destinations);
+        }
+        return;
+    }
     const BASE_RANKS: u64 = 0xFF00_0000_0000_00FF;
     const FILE_A: u64 = 0x0101010101010101;
     const FILE_H: u64 = 0x8080808080808080;
