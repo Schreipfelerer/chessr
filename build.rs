@@ -7,6 +7,16 @@ use bytemuck::cast_slice;
 use std::{env, fs::File, io::Write, path::Path};
 
 fn main() {
+    // give this thread a much bigger stack, then do the real work there
+    std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024) // 64 MiB
+        .spawn(real_main)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn real_main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=const_generator.rs");
 
