@@ -25,6 +25,7 @@
           packages = [
             pkgs.rust-bin.stable.latest.complete
             pkgs.cargo-watch
+            pkgs.perf
           ];
         };
       }
