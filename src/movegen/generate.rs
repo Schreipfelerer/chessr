@@ -77,7 +77,7 @@ fn generate_all(
             Piece::Pawn => generate_pawn_moves(board, from_sq, c, &mut moves, state_info, pbb),
             Piece::Knight => generate_knight_moves(board, from_sq, c, &mut moves, pbb),
             Piece::Bishop => {
-                generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Bishop, pbb)
+                generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Bishop, pbb);
             }
             Piece::Rook => generate_sliding_moves(board, from_sq, c, &mut moves, Piece::Rook, pbb),
             Piece::Queen => {

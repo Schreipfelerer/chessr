@@ -60,7 +60,7 @@ fn old_main() {
                 let result = BoardState::from_fen(&fen_str);
                 match result {
                     Ok(gs) => game_state = gs,
-                    Err(_) => println!("Error while parsing fen {:?}", result),
+                    Err(_) => println!("Error while parsing fen {result:?}"),
                 }
                 println!("{}", game_state.board);
             }

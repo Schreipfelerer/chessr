@@ -54,18 +54,17 @@ impl Move {
 
         let bytes = notation.as_bytes();
 
-        if bytes.len() != 4 && bytes.len() != 6 {
+        if bytes.len() != 4 && bytes.len() != 5 {
             return None;
         }
 
         let mut flag = 0;
-        if bytes.len() == 6 {
-            flag = match (bytes[4], bytes[5]) {
-                (b'=', b'N' | b'K') => 8,
-                (b'=', b'B') => 9,
-                (b'=', b'R') => 10,
-                (b'=', b'Q') => 11,
-                (b'e', b'P') => 5,
+        if bytes.len() == 5 {
+            flag = match bytes[5] {
+                b'n' => 8,
+                b'b' => 9,
+                b'r' => 10,
+                b'q' => 11,
                 _ => return None,
             };
         }

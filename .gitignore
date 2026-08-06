@@ -1,5 +1,15 @@
 .direnv/
 .env
 
+# Opening Books
+books/*
+!books/8moves_v3.pgn
+
+# Match results
+results/
+
+# Engines to benchmark against
+benchmarks/
+
 # Added by cargo
 /target

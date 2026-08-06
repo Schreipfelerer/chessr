@@ -15,26 +15,29 @@ pub fn iterative_deepening(
     let start = Instant::now();
     let moves = generate_moves(board_state);
     let mut best_move = moves[0]; // fallback, always legal
+    let mut nodes = 0u64;
 
     for depth in 1..=max_depth {
         if stop_flag.load(Ordering::Relaxed) {
             break;
         }
-        if let Some(budget) = time_budget {
-            if start.elapsed().as_millis() as u64 >= budget {
-                break;
-            }
-        }
 
-        let Some((mv, score)) = search_root(board_state, depth, &stop_flag, start, time_budget)
-        else {
+        let Some((mv, score)) = search_root(
+            board_state,
+            depth,
+            stop_flag,
+            start,
+            time_budget,
+            &mut nodes,
+        ) else {
             break; // aborted mid-depth, keep previous best_move
         };
 
         best_move = mv;
         println!(
-            "info depth {depth} score mp {score} time {} nodes 0 pv {mv}",
-            start.elapsed().as_millis()
+            "info depth {depth} score cp {} time {} nodes {nodes} pv {mv}",
+            score / 10,
+            start.elapsed().as_millis(),
         );
     }
 
@@ -47,11 +50,11 @@ fn search_root(
     stop_flag: &AtomicBool,
     start: Instant,
     budget_ms: Option<u64>,
+    nodes: &mut u64,
 ) -> Option<(Move, i32)> {
     let moves = generate_moves(board_state);
     let mut best_move = moves[0];
     let mut best_score = i32::MIN + 1;
-    let mut nodes = 0_u64;
     for mv in moves {
         let undo = board_state.make_move(mv);
         let score = search(
@@ -59,7 +62,7 @@ fn search_root(
             depth - 1,
             i32::MIN + 1,
             -best_score,
-            &mut nodes,
+            nodes,
             stop_flag,
             start,
             budget_ms,
@@ -87,15 +90,15 @@ fn search(
     ply: u8,
 ) -> Option<i32> {
     *nodes += 1;
-    if *nodes % 2048 == 0 {
+    if (*nodes).is_multiple_of(2048) {
         if stop_flag.load(Ordering::Relaxed) {
             return None;
         }
-        if let Some(b) = budget_ms {
-            if start.elapsed().as_millis() as u64 >= b {
-                stop_flag.store(true, Ordering::Relaxed);
-                return None;
-            }
+        if let Some(b) = budget_ms
+            && start.elapsed().as_millis() as u64 + 10 >= b
+        {
+            stop_flag.store(true, Ordering::Relaxed);
+            return None;
         }
     }
     if depth == 0 {
@@ -105,9 +108,10 @@ fn search(
 
     let moves = generate_moves(board_state);
     if moves.is_empty() {
-        return Some(match is_check(board_state) {
-            true => i32::MAX - ply as i32,
-            false => 0,
+        return Some(if is_check(board_state) {
+            i32::MAX - ply as i32
+        } else {
+            0
         });
     }
     for mv in moves {
@@ -130,7 +134,7 @@ fn search(
             // Move too good, need to prune
             return Some(beta);
         }
-        alpha = max(alpha, evaluation?)
+        alpha = max(alpha, evaluation?);
     }
     Some(alpha)
 }

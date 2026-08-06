@@ -1,7 +1,7 @@
-use crate::board::{BoardState, Color, Move};
+use crate::board::{BoardState, Color};
 use crate::movegen::generate_moves;
 use crate::search::iterative_deepening;
-use std::io::BufRead;
+use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
@@ -42,7 +42,7 @@ pub fn uci_loop() {
                     }
                     stop_flag.store(false, Ordering::Relaxed);
 
-                    let mut thread_board = board_state.clone();
+                    let mut thread_board = board_state;
                     let thread_stop = Arc::clone(&stop_flag);
                     let depth = params.depth.unwrap_or(255);
 
@@ -53,7 +53,8 @@ pub fn uci_loop() {
                             time_budget,
                             &thread_stop,
                         );
-                        println!("{m}");
+                        println!("bestmove {m}");
+                        let _ = io::stdout().flush();
                     }));
                 } else {
                     println!("Malformed go params");
@@ -64,6 +65,7 @@ pub fn uci_loop() {
             Some("quit") => break,
             _ => {}
         }
+        let _ = io::stdout().flush();
     }
 }
 
@@ -86,24 +88,11 @@ fn handle_position(parts: &mut std::str::SplitWhitespace) -> Option<BoardState> 
 
     if parts.next() == Some("moves") {
         for mv_str in parts {
-            let Some(mut m) = Move::from_notation(&board_state, mv_str) else {
-                break;
-            };
             let legal = generate_moves(&board_state);
-            if m.flags().is_promotion() {
-                if legal.iter().any(|mov| *mov == m) {
-                    board_state.make_move(m);
-                }
-                else {
-                    break;
-                }
+            if let Some(found) = legal.iter().find(|mov| *mov.to_string() == *mv_str) {
+                board_state.make_move(*found);
             } else {
-                if let Some(found) = legal.iter().find(|mov| mov.0 & 0xFFF == m.0 & 0xFFF) {
-                    m = *found;
-                    board_state.make_move(m);
-                } else {
-                    break;
-                };
+                break;
             }
         }
     }
@@ -111,7 +100,6 @@ fn handle_position(parts: &mut std::str::SplitWhitespace) -> Option<BoardState> 
     Some(board_state)
 }
 
-// Todo: Dont silently swallow malformed units
 fn parse_go(parts: &mut std::str::SplitWhitespace) -> Option<GoParams> {
     let mut params = GoParams {
         movetime: None,
