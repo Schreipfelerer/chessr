@@ -9,7 +9,7 @@ use arrayvec::ArrayVec;
 
 #[must_use]
 /// Generates all legal moves for the active side.
-pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
+pub fn generate_moves(board_state: &BoardState, only_capture: bool) -> ArrayVec<Move, 256> {
     let board = &board_state.board;
     let state_info = &board_state.state_info;
     let c = state_info.active_color;
@@ -18,7 +18,11 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
 
     match checkers.count_ones() {
         0 => {
-            let bb = !0u64;
+            let bb = if only_capture {
+                board.occ_enemy(c)
+            } else {
+                !0u64
+            };
             generate_all(board, state_info, c, bb, true)
         }
         1 => {

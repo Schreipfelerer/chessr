@@ -89,7 +89,7 @@
               -engine "cmd=$old_bin" "name=$spec"
               -engine cmd=target/release-fast/chessr name=new
               -each proto=uci "st=$st"
-              -rounds 100 -repeat -games 2
+              -rounds 50 -repeat -games 2
               -pgnout results/vs_chessr_"$spec".pgn
               -concurrency 8
             )

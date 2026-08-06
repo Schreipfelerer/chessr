@@ -103,7 +103,7 @@ fn handle_position(parts: &mut std::str::SplitWhitespace) -> Option<BoardState> 
 
     if parts.next() == Some("moves") {
         for mv_str in parts {
-            let legal = generate_moves(&board_state);
+            let legal = generate_moves(&board_state, false);
             if let Some(found) = legal.iter().find(|mov| *mov.to_string() == *mv_str) {
                 board_state.make_move(*found);
             } else {

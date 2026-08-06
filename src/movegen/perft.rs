@@ -13,7 +13,7 @@ pub fn perft(board_state: &mut BoardState, max_depth: u8) {
 
 pub fn perft_devide(board_state: &mut BoardState, depth: u8) {
     let mut total = 0;
-    for m in generate_moves(board_state) {
+    for m in generate_moves(board_state, false) {
         let undo = board_state.make_move(m);
         let moves = count_moves(board_state, depth - 1);
         println!("  {m}: {moves} moves");
@@ -28,7 +28,7 @@ pub fn count_moves(board_state: &mut BoardState, depth: u8) -> u32 {
         return 1;
     }
     let mut move_count = 0;
-    let moves = generate_moves(board_state);
+    let moves = generate_moves(board_state, false);
     if depth == 1 {
         return moves.len() as u32;
     }

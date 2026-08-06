@@ -13,7 +13,7 @@ pub fn iterative_deepening(
     stop_flag: &Arc<AtomicBool>,
 ) -> (Move, u32) {
     let start = Instant::now();
-    let moves = generate_moves(board_state);
+    let moves = generate_moves(board_state, false);
     let mut best_move = moves[0]; // fallback, always legal
     let mut nodes = 0u32;
 
@@ -52,7 +52,7 @@ fn search_root(
     budget_ms: Option<u64>,
     nodes: &mut u32,
 ) -> Option<(Move, i32)> {
-    let moves = generate_moves(board_state);
+    let moves = generate_moves(board_state, false);
     let mut best_move = moves[0];
     let mut best_score = i32::MIN + 1;
     for mv in moves {
@@ -89,6 +89,20 @@ fn search(
     budget_ms: Option<u64>,
     ply: u8,
 ) -> Option<i32> {
+
+    if depth == 0 {
+        return quiescence_search(
+            board_state,
+            4,
+            alpha,
+            beta,
+            nodes,
+            stop_flag,
+            start,
+            budget_ms,
+            ply,
+        );
+    }
     *nodes += 1;
     if (*nodes).is_multiple_of(2048) {
         if stop_flag.load(Ordering::Relaxed) {
@@ -101,12 +115,10 @@ fn search(
             return None;
         }
     }
-    if depth == 0 {
-        return Some(eval(board_state));
-    }
+
     let mut alpha = alpha;
 
-    let moves = generate_moves(board_state);
+    let moves = generate_moves(board_state, false);
     if moves.is_empty() {
         return Some(if is_check(board_state) {
             i32::MAX - ply as i32
@@ -117,6 +129,73 @@ fn search(
     for mv in moves {
         let undo = board_state.make_move(mv);
         let evaluation = search(
+            board_state,
+            depth - 1,
+            -beta,
+            -alpha,
+            nodes,
+            stop_flag,
+            start,
+            budget_ms,
+            ply + 1,
+        )
+        .map(|e| -e);
+        board_state.undo_move(&undo);
+
+        if evaluation? >= beta {
+            // Move too good, need to prune
+            return Some(beta);
+        }
+        alpha = max(alpha, evaluation?);
+    }
+    Some(alpha)
+}
+
+fn quiescence_search(
+    board_state: &mut BoardState,
+    depth: u8,
+    alpha: i32,
+    beta: i32,
+    nodes: &mut u32,
+    stop_flag: &AtomicBool,
+    start: Instant,
+    budget_ms: Option<u64>,
+    ply: u8,
+) -> Option<i32> {
+    *nodes += 1;
+    if (*nodes).is_multiple_of(2048) {
+        if stop_flag.load(Ordering::Relaxed) {
+            return None;
+        }
+        if let Some(b) = budget_ms
+            && start.elapsed().as_millis() as u64 + 10 >= b
+        {
+            stop_flag.store(true, Ordering::Relaxed);
+            return None;
+        }
+    }
+
+    let stand_pat = eval(board_state);
+    if depth == 0 {
+        return Some(stand_pat);
+    }
+    let mut alpha = alpha;
+
+    if stand_pat >= beta{
+        return Some(beta);
+    }
+
+    if stand_pat > alpha{
+        alpha = stand_pat;
+    }
+
+    let moves = generate_moves(board_state, true);
+    if moves.is_empty() {
+        return Some(stand_pat)
+    }
+    for mv in moves {
+        let undo = board_state.make_move(mv);
+        let evaluation = quiescence_search(
             board_state,
             depth - 1,
             -beta,
