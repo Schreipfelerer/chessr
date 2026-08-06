@@ -39,6 +39,17 @@ pub fn generate_moves(board_state: &BoardState) -> ArrayVec<Move, 256> {
 }
 
 #[must_use]
+/// See if king is in check
+pub fn is_check(board_state: &BoardState) -> bool {
+    let board = &board_state.board;
+    let state_info = &board_state.state_info;
+    let c = state_info.active_color;
+
+    let checkers: u64 = compute_checkers(board, c);
+    checkers != 0
+}
+
+#[must_use]
 /// Generates legal moves for moves that land on a valid square.
 fn generate_all(
     board: &Board,

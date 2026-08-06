@@ -1,6 +1,6 @@
 use crate::board::{BoardState, Move};
 use crate::eval::eval;
-use crate::movegen::generate_moves;
+use crate::movegen::{generate_moves, is_check};
 use std::cmp::max;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,7 +15,7 @@ pub fn iterative_deepening(
     let start = Instant::now();
     let moves = generate_moves(board_state);
     let mut best_move = moves[0]; // fallback, always legal
-    
+
     for depth in 1..=max_depth {
         if stop_flag.load(Ordering::Relaxed) {
             break;
@@ -33,7 +33,7 @@ pub fn iterative_deepening(
 
         best_move = mv;
         println!(
-            "info depth {depth} score cp {score} time {} nodes 0 pv {mv}",
+            "info depth {depth} score mp {score} time {} nodes 0 pv {mv}",
             start.elapsed().as_millis()
         );
     }
@@ -50,7 +50,7 @@ fn search_root(
 ) -> Option<(Move, i32)> {
     let moves = generate_moves(board_state);
     let mut best_move = moves[0];
-    let mut best_score = i32::MIN;
+    let mut best_score = i32::MIN + 1;
     let mut nodes = 0_u64;
     for mv in moves {
         let undo = board_state.make_move(mv);
@@ -63,6 +63,7 @@ fn search_root(
             stop_flag,
             start,
             budget_ms,
+            0,
         )
         .map(|e| -e);
         board_state.undo_move(&undo);
@@ -83,6 +84,7 @@ fn search(
     stop_flag: &AtomicBool,
     start: Instant,
     budget_ms: Option<u64>,
+    ply: u8,
 ) -> Option<i32> {
     *nodes += 1;
     if *nodes % 2048 == 0 {
@@ -102,6 +104,12 @@ fn search(
     let mut alpha = alpha;
 
     let moves = generate_moves(board_state);
+    if moves.is_empty() {
+        return Some(match is_check(board_state) {
+            true => i32::MAX - ply as i32,
+            false => 0,
+        });
+    }
     for mv in moves {
         let undo = board_state.make_move(mv);
         let evaluation = search(
@@ -113,6 +121,7 @@ fn search(
             stop_flag,
             start,
             budget_ms,
+            ply + 1,
         )
         .map(|e| -e);
         board_state.undo_move(&undo);
