@@ -9,7 +9,7 @@ books/*
 results/
 
 # Engines to benchmark against
-benchmarks/
+baselines/
 
 # Added by cargo
 /target

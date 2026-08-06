@@ -11,11 +11,11 @@ pub fn iterative_deepening(
     max_depth: u8,
     time_budget: Option<u64>,
     stop_flag: &Arc<AtomicBool>,
-) -> Move {
+) -> (Move, u32) {
     let start = Instant::now();
     let moves = generate_moves(board_state);
     let mut best_move = moves[0]; // fallback, always legal
-    let mut nodes = 0u64;
+    let mut nodes = 0u32;
 
     for depth in 1..=max_depth {
         if stop_flag.load(Ordering::Relaxed) {
@@ -41,7 +41,7 @@ pub fn iterative_deepening(
         );
     }
 
-    best_move
+    (best_move, nodes)
 }
 
 fn search_root(
@@ -50,7 +50,7 @@ fn search_root(
     stop_flag: &AtomicBool,
     start: Instant,
     budget_ms: Option<u64>,
-    nodes: &mut u64,
+    nodes: &mut u32,
 ) -> Option<(Move, i32)> {
     let moves = generate_moves(board_state);
     let mut best_move = moves[0];
@@ -83,7 +83,7 @@ fn search(
     depth: u8,
     alpha: i32,
     beta: i32,
-    nodes: &mut u64,
+    nodes: &mut u32,
     stop_flag: &AtomicBool,
     start: Instant,
     budget_ms: Option<u64>,

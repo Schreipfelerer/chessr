@@ -1,6 +1,7 @@
 use crate::board::{BoardState, Color};
-use crate::movegen::generate_moves;
+use crate::movegen::{generate_moves, perft, perft_devide};
 use crate::search::iterative_deepening;
+use crate::bench::bench;
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -47,7 +48,7 @@ pub fn uci_loop() {
                     let depth = params.depth.unwrap_or(255);
 
                     search_handle = Some(std::thread::spawn(move || {
-                        let m = iterative_deepening(
+                        let (m, _nodes) = iterative_deepening(
                             &mut thread_board,
                             depth,
                             time_budget,
@@ -63,6 +64,20 @@ pub fn uci_loop() {
             Some("d") => println!("{}", board_state.board),
             Some("stop") => stop_flag.store(true, Ordering::Relaxed),
             Some("quit") => break,
+            Some("bench") => {
+                let depth = parts.next().and_then(|s| s.parse().ok()).unwrap_or(6);
+                bench(depth);
+            }
+            Some("perft") => {
+                if let Some(depth) = parts.next().and_then(|s| s.parse().ok()) {
+                    perft(&mut board_state, depth);
+                }
+            }
+            Some("perftd") => {
+                if let Some(depth) = parts.next().and_then(|s| s.parse().ok()) {
+                    perft_devide(&mut board_state, depth);
+                }
+            }
             _ => {}
         }
         let _ = io::stdout().flush();
