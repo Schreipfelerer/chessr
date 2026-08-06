@@ -1,11 +1,12 @@
 use crate::board::{Board, Color, FenErr, Move, MoveFlag, Piece, StateInfo, Undo};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct BoardState {
     pub board: Board,
     pub state_info: StateInfo,
 }
 impl BoardState {
+    #[must_use]
     pub fn from_fen(fen: &str) -> Result<Self, FenErr> {
         let parts: Vec<&str> = fen.split_whitespace().collect();
         if parts.len() != 6 {
@@ -132,4 +133,24 @@ impl BoardState {
 
         self.state_info.undo(undo);
     }
+
+    #[must_use]
+    pub const fn start_pos() -> Self {
+        Self {
+            board: Board::start_pos(),
+            state_info: StateInfo::start_pos(),
+        }
+    }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::board::BoardState;
+
+    #[test]
+    fn test_start_pos() {
+        const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        assert_eq!(BoardState::start_pos(), BoardState::from_fen(START_FEN).unwrap());
+    }
+}
+

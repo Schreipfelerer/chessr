@@ -5,7 +5,7 @@ const WHITE_QUEENSIDE: u8 = 0b0100;
 const BLACK_KINGSIDE: u8 = 0b0010;
 const BLACK_QUEENSIDE: u8 = 0b0001;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct StateInfo {
     pub castle_rights: u8, // Bit 0-3 Unused, White Short, White Long, Black Short, Black Long
     pub active_color: Color,
@@ -14,6 +14,7 @@ pub struct StateInfo {
     pub ep_square: Option<Sq64>,
 }
 impl StateInfo {
+    #[must_use]
     pub fn from_fen(fen_parts: &[&str]) -> Result<Self, FenErr> {
         Ok(Self {
             active_color: match fen_parts[0] {
@@ -33,6 +34,16 @@ impl StateInfo {
                 .parse()
                 .map_err(|_| FenErr::InvalidFullmoveNumber)?,
         })
+    }
+    #[must_use]
+    pub const fn start_pos() -> Self {
+        Self{
+            active_color: Color::White,
+            castle_rights: 0xF,
+            ep_square: None,
+            half_move_clock: 0,
+            full_move_number: 1,
+        }
     }
     #[must_use]
     pub fn has_castle_rights(&self, color: Color, is_short: bool) -> bool {

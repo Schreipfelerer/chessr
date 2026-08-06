@@ -1,7 +1,7 @@
 use crate::board::{Color, FenErr, Piece, Sq64};
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Board {
     pieces: [[u64; 6]; 2], // [Color, PieceType]
     occupancy: [u64; 3],   // [White, Black, Both]
@@ -9,6 +9,7 @@ pub struct Board {
 }
 
 impl Board {
+    #[must_use]
     pub fn from_fen_part(fen_part: &str) -> Result<Self, FenErr> {
         let mut pieces: [[u64; 6]; 2] = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]];
         let mut rank: u32 = 7;
@@ -61,6 +62,64 @@ impl Board {
             occupancy,
             mailbox,
         })
+    }
+    #[must_use]
+    pub const fn start_pos() -> Self {
+        let pawn_bb = 0xFF00;
+        let knight_bb = 0x42;
+        let bishop_bb = 0x24;
+        let rook_bb = 0x81;
+        let queen_bb = 0x8;
+        let king_bb = 0x10;
+        let pieces = [
+            [pawn_bb, knight_bb, bishop_bb, rook_bb, queen_bb, king_bb],
+            [
+                pawn_bb << 8 * 5,
+                knight_bb << 8 * 7,
+                bishop_bb << 8 * 7,
+                rook_bb << 8 * 7,
+                queen_bb << 8 * 7,
+                king_bb << 8 * 7,
+            ],
+        ];
+        let mut mailbox = [None; 64];
+
+        // White
+        mailbox[0] = Some(Piece::Rook);
+        mailbox[1] = Some(Piece::Knight);
+        mailbox[2] = Some(Piece::Bishop);
+        mailbox[3] = Some(Piece::Queen);
+        mailbox[4] = Some(Piece::King);
+        mailbox[5] = Some(Piece::Bishop);
+        mailbox[6] = Some(Piece::Knight);
+        mailbox[7] = Some(Piece::Rook);
+
+        let mut i = 8;
+        while i < 16 {
+            mailbox[i] = Some(Piece::Pawn);
+            i += 1;
+        }
+
+        // Black
+        i = 48;
+        while i < 56 {
+            mailbox[i] = Some(Piece::Pawn);
+            i += 1;
+        }
+
+        mailbox[56] = Some(Piece::Rook);
+        mailbox[57] = Some(Piece::Knight);
+        mailbox[58] = Some(Piece::Bishop);
+        mailbox[59] = Some(Piece::Queen);
+        mailbox[60] = Some(Piece::King);
+        mailbox[61] = Some(Piece::Bishop);
+        mailbox[62] = Some(Piece::Knight);
+        mailbox[63] = Some(Piece::Rook);
+        Self {
+            pieces,
+            occupancy: [0xFFFF, 0xFFFF_0000_0000_0000, 0xFFFF_0000_0000_FFFF],
+            mailbox,
+        }
     }
     #[must_use]
     pub fn get_piece_bitboard(&self, color: Color, piece: Piece) -> u64 {

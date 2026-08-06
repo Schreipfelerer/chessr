@@ -3,14 +3,19 @@ use std::io::{self, BufRead};
 use chessr::{
     board::{BoardState, Move, Undo},
     movegen::{generate_moves, perft, perft_devide},
+    uci::uci_loop,
 };
 
-const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
 fn main() {
+    uci_loop();
+}
+
+
+#[allow(dead_code)]
+fn old_main() {
     let stdin = io::stdin();
     let mut handle = stdin.lock();
-    let mut game_state = BoardState::from_fen(START_FEN).unwrap();
+    let mut game_state = BoardState::start_pos();
     let mut undo: Option<Undo> = None;
     println!("{}", game_state.board);
 
