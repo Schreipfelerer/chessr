@@ -1,4 +1,4 @@
-use crate::board::{Color, FenErr, Piece, Sq64};
+use crate::board::{Color, FenErr, Piece, Sq64, zobrist::ZOBRIST_PIECES};
 use std::fmt;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -6,6 +6,7 @@ pub struct Board {
     pieces: [[u64; 6]; 2], // [Color, PieceType]
     occupancy: [u64; 3],   // [White, Black, Both]
     mailbox: [Option<Piece>; 64],
+    pub(crate) hash: u64,
 }
 
 impl Board {
@@ -15,6 +16,7 @@ impl Board {
         let mut rank: u32 = 7;
         let mut file = 0;
         let mut mailbox: [Option<Piece>; 64] = [None; 64];
+        let mut hash = 0;
         for c in fen_part.chars() {
             match c {
                 '/' => {
@@ -36,8 +38,10 @@ impl Board {
                         'k' => Piece::King,
                         _ => return Err(FenErr::InvalidCharInPiecePlacement),
                     };
-                    mailbox[(file + rank * 8) as usize] = Some(piece);
-                    pieces[color as usize][piece as usize] |= 1u64 << (file + rank * 8);
+                    let sq = file + rank * 8;
+                    mailbox[sq as usize] = Some(piece);
+                    pieces[color as usize][piece as usize] |= 1u64 << sq;
+                    hash ^= ZOBRIST_PIECES[color as usize][piece as usize][sq as usize];
                     file += 1;
                 }
             }
@@ -61,6 +65,7 @@ impl Board {
             pieces,
             occupancy,
             mailbox,
+            hash,
         })
     }
     #[must_use]
@@ -119,6 +124,7 @@ impl Board {
             pieces,
             occupancy: [0xFFFF, 0xFFFF_0000_0000_0000, 0xFFFF_0000_0000_FFFF],
             mailbox,
+            hash: 0,
         }
     }
     #[must_use]
@@ -139,6 +145,7 @@ impl Board {
         self.occupancy[color as usize] ^= mask;
         self.occupancy[2] ^= mask;
         self.mailbox[sq.ind()] = None;
+        self.hash ^= ZOBRIST_PIECES[color as usize][piece as usize][sq.ind()];
     }
     pub fn place_piece(&mut self, sq: Sq64, color: Color, piece: Piece) {
         let mask = sq.mask();
@@ -146,6 +153,7 @@ impl Board {
         self.occupancy[color as usize] ^= mask;
         self.occupancy[2] ^= mask;
         self.mailbox[sq.ind()] = Some(piece);
+        self.hash ^= ZOBRIST_PIECES[color as usize][piece as usize][sq.ind()];
     }
 
     /// Panics if sq is empty

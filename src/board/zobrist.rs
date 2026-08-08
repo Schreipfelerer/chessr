@@ -1,38 +1,28 @@
-use rand::rngs::StdRng;
-use rand::{Rng, RngExt, SeedableRng};
+#[repr(align(8))]
+struct AlignedBytes<const N: usize>([u8; N]);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ZobristKeys {
-    // [piece_color][piece_type][square]
-    pub pieces: [[[u64; 64]; 6]; 2], 
-    pub castling: [u64; 16],
-    pub en_passant: [u64; 8],
-    pub side_to_move: u64,
-}
+static ZOBRIST_PIECES_BYTES: AlignedBytes<6_144> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/zobrist_pieces.bin"
+)));
+static ZOBRIST_CASTLING_BYTES: AlignedBytes<128> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/zobrist_castling.bin"
+)));
+static ZOBRIST_EP_BYTES: AlignedBytes<64> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/zobrist_ep.bin"
+)));
+static ZOBRIST_SIDE_BYTES: AlignedBytes<8> = AlignedBytes(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/zobrist_side.bin"
+)));
 
-impl ZobristKeys {
-    pub fn new() -> Self {
-        let mut rng = StdRng::seed_from_u64(133767);
-        let mut p = [[[0_u64; 64]; 6]; 2];
-        for color in 0..2{
-            for piece in 0..6{
-                for sq in 0..64{
-                    p[color][piece][sq] = rng.next_u64();
-                }
-            }
-        }
-
-        let mut c = [0_u64; 16];
-        rng.fill(&mut c);
-
-        let mut e = [0_u64; 8];
-        rng.fill(&mut e);
-        ZobristKeys {
-            pieces: p,
-            castling: c,
-            en_passant: e,
-            side_to_move: rng.next_u64(),
-        }
-    }
-}
-
+pub static ZOBRIST_PIECES: &[[[u64; 64]; 6]; 2] =
+    unsafe { &*(ZOBRIST_PIECES_BYTES.0.as_ptr() as *const [[[u64; 64]; 6]; 2]) };
+pub static ZOBRIST_CASTLING: &[u64; 16] =
+    unsafe { &*(ZOBRIST_CASTLING_BYTES.0.as_ptr() as *const [u64; 16]) };
+pub static ZOBRIST_EP: &[u64; 8] =
+    unsafe { &*(ZOBRIST_EP_BYTES.0.as_ptr() as *const [u64; 8]) };
+pub static ZOBRIST_SIDE: &u64 =
+    unsafe { &*(ZOBRIST_SIDE_BYTES.0.as_ptr() as *const u64) };

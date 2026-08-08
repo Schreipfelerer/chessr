@@ -58,11 +58,11 @@
             set -- "''${pos_args[@]}"
 
             if [ $# -lt 1 ]; then
-              echo "Usage: chessr-match <old-version> [movetime_seconds=0.2] [book.pgn=books/8moves_v3.pgn] [--no-sprt]"
+              echo "Usage: chessr-match <old-version> [movetime_seconds=1] [book.pgn=books/8moves_v3.pgn] [--no-sprt]"
               exit 1
             fi
             spec="$1"
-            st="''${2:-0.2}"
+            st="''${2:-1}"
             book="''${3:-books/8moves_v3.pgn}"
 
             mkdir -p baselines

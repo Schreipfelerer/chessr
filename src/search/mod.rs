@@ -89,7 +89,7 @@ fn search(
     budget_ms: Option<u64>,
     ply: u8,
 ) -> Option<i32> {
-    if board_state.is_repetition(){
+    if board_state.is_repetition() {
         return Some(0);
     }
 
@@ -112,7 +112,7 @@ fn search(
             return None;
         }
         if let Some(b) = budget_ms
-            && start.elapsed().as_millis() as u64 + 10 >= b
+            && start.elapsed().as_millis() as u64 + 20 >= b
         {
             stop_flag.store(true, Ordering::Relaxed);
             return None;
@@ -171,7 +171,7 @@ fn quiescence_search(
             return None;
         }
         if let Some(b) = budget_ms
-            && start.elapsed().as_millis() as u64 + 10 >= b
+            && start.elapsed().as_millis() as u64 + 20 >= b
         {
             stop_flag.store(true, Ordering::Relaxed);
             return None;
@@ -184,17 +184,21 @@ fn quiescence_search(
     }
     let mut alpha = alpha;
 
-    if stand_pat >= beta{
+    if stand_pat >= beta {
         return Some(beta);
     }
 
-    if stand_pat > alpha{
+    if stand_pat > alpha {
         alpha = stand_pat;
     }
 
     let moves = generate_moves(board_state, true);
     if moves.is_empty() {
-        return Some(stand_pat)
+        return Some(if is_check(board_state) {
+            i32::MAX - ply as i32
+        } else {
+            return Some(stand_pat);
+        });
     }
     for mv in moves {
         let undo = board_state.make_move(mv);

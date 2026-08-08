@@ -133,7 +133,6 @@ impl Sq88 {
     }
 }
 
-
 pub const fn compute_between() -> [[u64; 64]; 64] {
     #[allow(clippy::large_stack_arrays)]
     let mut table = [[0; 64]; 64];
@@ -174,4 +173,34 @@ pub const fn compute_between() -> [[u64; 64]; 64] {
         a += 1;
     }
     table
+}
+
+use rand::rngs::StdRng;
+use rand::{Rng, RngExt};
+
+pub fn zobrist_side(rng: &mut StdRng) -> u64 {
+    rng.next_u64()
+}
+
+pub fn zobrist_ep(rng: &mut StdRng) -> [u64; 8] {
+    let mut e = [0_u64; 8];
+    rng.fill(&mut e);
+    e
+}
+pub fn zobrist_castling(rng: &mut StdRng) -> [u64; 16] {
+    let mut e = [0_u64; 16];
+    rng.fill(&mut e);
+    e
+}
+
+pub fn zobrist_piece(rng: &mut StdRng) -> [[[u64; 64]; 6]; 2] {
+    let mut p = [[[0_u64; 64]; 6]; 2];
+    for color in 0..2 {
+        for piece in 0..6 {
+            for sq in 0..64 {
+                p[color][piece][sq] = rng.next_u64();
+            }
+        }
+    }
+    p
 }
