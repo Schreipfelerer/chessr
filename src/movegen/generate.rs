@@ -1,4 +1,5 @@
-use crate::movegen::helpers::{BitboardIter, compute_checkers, compute_pins, is_attacked};
+use crate::movegen::BitboardIter;
+use crate::movegen::helpers::{compute_checkers, compute_pins, is_attacked};
 use crate::{
     board::{Board, BoardState, Color, Move, MoveFlag, Piece, Sq64, StateInfo},
     movegen::r#const::{

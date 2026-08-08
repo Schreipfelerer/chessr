@@ -1,13 +1,13 @@
-use crate::board::{
+use crate::{board::{
     Board, Color, FenErr, Move, MoveFlag, Piece, StateInfo, Undo, zobrist::ZobristKeys,
-};
+}, movegen::BitboardIter};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct BoardState {
     pub board: Board,
     pub state_info: StateInfo,
-    zobrist: ZobristKeys,
-    zobrist_hist: Vec<u64>,
+    zobrist_keys: ZobristKeys,
+    pub zobrist: u64,
 }
 
 impl BoardState {
@@ -17,11 +17,14 @@ impl BoardState {
         if parts.len() != 6 {
             return Err(FenErr::InvalidFormat);
         }
-        Ok(Self {
+        let mut bs = Self {
             board: Board::from_fen_part(parts[0])?,
             state_info: StateInfo::from_fen(&parts[1..])?,
-            zobrist: ZobristKeys::new(),
-        })
+            zobrist_keys: ZobristKeys::new(),
+            zobrist: 0,
+        };
+        bs.zobrist = bs.zobrist();
+        Ok(bs)
     }
 
     pub fn make_move(&mut self, m: Move) -> Undo {
@@ -96,6 +99,7 @@ impl BoardState {
         }
         self.state_info.active_color = !self.state_info.active_color;
 
+        self.zobrist = self.zobrist();
         undo
     }
 
@@ -138,15 +142,19 @@ impl BoardState {
         }
 
         self.state_info.undo(undo);
+        self.zobrist = self.zobrist();
     }
 
     #[must_use]
     pub fn start_pos() -> Self {
-        Self {
+        let mut bs = Self {
             board: Board::start_pos(),
             state_info: StateInfo::start_pos(),
-            zobrist: ZobristKeys::new(),
-        }
+            zobrist_keys: ZobristKeys::new(),
+            zobrist: 0,
+        };
+        bs.zobrist = bs.zobrist();
+        bs
     }
 
     #[must_use]
@@ -154,17 +162,17 @@ impl BoardState {
         let mut zobrist = 0;
         for c in Color::ALL {
             for piece in Piece::ALL {
-                for sq in 0..64 {
-                    zobrist ^= self.zobrist.pieces[c as usize][piece as usize][sq];
+                for sq in BitboardIter(self.board.get_piece_bitboard(c, piece)) {
+                    zobrist ^= self.zobrist_keys.pieces[c as usize][piece as usize][sq.ind()];
                 }
             }
         }
-        zobrist ^= self.zobrist.castling[self.state_info.castle_rights as usize];
+        zobrist ^= self.zobrist_keys.castling[self.state_info.castle_rights as usize];
         if self.state_info.active_color == Color::Black {
-            zobrist ^= self.zobrist.side_to_move;
+            zobrist ^= self.zobrist_keys.side_to_move;
         }
         if let Some(sq) = self.state_info.ep_square {
-            zobrist ^= self.zobrist.en_passant[sq.file() as usize - 1]
+            zobrist ^= self.zobrist_keys.en_passant[sq.file() as usize]
         }
 
         zobrist
