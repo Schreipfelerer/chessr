@@ -1,10 +1,15 @@
-use crate::board::{Board, Color, FenErr, Move, MoveFlag, Piece, StateInfo, Undo};
+use crate::board::{
+    Board, Color, FenErr, Move, MoveFlag, Piece, StateInfo, Undo, zobrist::ZobristKeys,
+};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BoardState {
     pub board: Board,
     pub state_info: StateInfo,
+    zobrist: ZobristKeys,
+    zobrist_hist: Vec<u64>,
 }
+
 impl BoardState {
     #[must_use]
     pub fn from_fen(fen: &str) -> Result<Self, FenErr> {
@@ -15,6 +20,7 @@ impl BoardState {
         Ok(Self {
             board: Board::from_fen_part(parts[0])?,
             state_info: StateInfo::from_fen(&parts[1..])?,
+            zobrist: ZobristKeys::new(),
         })
     }
 
@@ -135,11 +141,33 @@ impl BoardState {
     }
 
     #[must_use]
-    pub const fn start_pos() -> Self {
+    pub fn start_pos() -> Self {
         Self {
             board: Board::start_pos(),
             state_info: StateInfo::start_pos(),
+            zobrist: ZobristKeys::new(),
         }
+    }
+
+    #[must_use]
+    pub fn zobrist(self) -> u64 {
+        let mut zobrist = 0;
+        for c in Color::ALL {
+            for piece in Piece::ALL {
+                for sq in 0..64 {
+                    zobrist ^= self.zobrist.pieces[c as usize][piece as usize][sq];
+                }
+            }
+        }
+        zobrist ^= self.zobrist.castling[self.state_info.castle_rights as usize];
+        if self.state_info.active_color == Color::Black {
+            zobrist ^= self.zobrist.side_to_move;
+        }
+        if let Some(sq) = self.state_info.ep_square {
+            zobrist ^= self.zobrist.en_passant[sq.file() as usize - 1]
+        }
+
+        zobrist
     }
 }
 
@@ -150,7 +178,9 @@ mod tests {
     #[test]
     fn test_start_pos() {
         const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        assert_eq!(BoardState::start_pos(), BoardState::from_fen(START_FEN).unwrap());
+        assert_eq!(
+            BoardState::start_pos(),
+            BoardState::from_fen(START_FEN).unwrap()
+        );
     }
 }
-

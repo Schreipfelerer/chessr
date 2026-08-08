@@ -8,8 +8,8 @@ mod sq64;
 pub use sq64::Sq64;
 mod board_state;
 pub use board_state::BoardState;
-
 mod state_info;
 pub use state_info::{StateInfo, FenErr};
 mod board;
 pub use board::Board;
+mod zobrist;
