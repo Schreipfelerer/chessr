@@ -89,6 +89,9 @@ fn search(
     budget_ms: Option<u64>,
     ply: u8,
 ) -> Option<i32> {
+    if board_state.is_repetition(){
+        return Some(0);
+    }
 
     if depth == 0 {
         return quiescence_search(

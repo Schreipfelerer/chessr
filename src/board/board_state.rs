@@ -1,13 +1,15 @@
-use crate::{board::{
-    Board, Color, FenErr, Move, MoveFlag, Piece, StateInfo, Undo, zobrist::ZobristKeys,
-}, movegen::BitboardIter};
+use crate::{
+    board::{Board, Color, FenErr, Move, MoveFlag, Piece, StateInfo, Undo, zobrist::ZobristKeys},
+    movegen::BitboardIter,
+};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BoardState {
     pub board: Board,
     pub state_info: StateInfo,
     zobrist_keys: ZobristKeys,
-    pub zobrist: u64,
+    zobrist_hist: Vec<u64>,
+    zobrist: u64,
 }
 
 impl BoardState {
@@ -21,13 +23,16 @@ impl BoardState {
             board: Board::from_fen_part(parts[0])?,
             state_info: StateInfo::from_fen(&parts[1..])?,
             zobrist_keys: ZobristKeys::new(),
+            zobrist_hist: Vec::with_capacity(1000),
             zobrist: 0,
         };
-        bs.zobrist = bs.zobrist();
+        bs.update_zobrist();
         Ok(bs)
     }
 
     pub fn make_move(&mut self, m: Move) -> Undo {
+        self.zobrist_hist.push(self.zobrist);
+
         let flags = m.flags();
         let from = m.source();
         let to = m.target();
@@ -99,7 +104,7 @@ impl BoardState {
         }
         self.state_info.active_color = !self.state_info.active_color;
 
-        self.zobrist = self.zobrist();
+        self.update_zobrist();
         undo
     }
 
@@ -142,7 +147,8 @@ impl BoardState {
         }
 
         self.state_info.undo(undo);
-        self.zobrist = self.zobrist();
+        self.zobrist_hist.pop();
+        self.update_zobrist();
     }
 
     #[must_use]
@@ -151,14 +157,14 @@ impl BoardState {
             board: Board::start_pos(),
             state_info: StateInfo::start_pos(),
             zobrist_keys: ZobristKeys::new(),
+            zobrist_hist: Vec::with_capacity(1000),
             zobrist: 0,
         };
-        bs.zobrist = bs.zobrist();
+        bs.update_zobrist();
         bs
     }
 
-    #[must_use]
-    pub fn zobrist(self) -> u64 {
+    fn update_zobrist(&mut self) {
         let mut zobrist = 0;
         for c in Color::ALL {
             for piece in Piece::ALL {
@@ -175,7 +181,18 @@ impl BoardState {
             zobrist ^= self.zobrist_keys.en_passant[sq.file() as usize]
         }
 
-        zobrist
+        self.zobrist = zobrist;
+    }
+
+    pub fn is_repetition(&self) -> bool {
+        let clock = self.state_info.half_move_clock as usize;
+        self.zobrist_hist
+            .iter()
+            .rev()
+            .take(clock)
+            .filter(|&&h| h == self.zobrist)
+            .count()
+            >= 2
     }
 }
 

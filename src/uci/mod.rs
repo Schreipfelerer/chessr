@@ -43,7 +43,7 @@ pub fn uci_loop() {
                     }
                     stop_flag.store(false, Ordering::Relaxed);
 
-                    let mut thread_board = board_state;
+                    let mut thread_board = board_state.clone();
                     let thread_stop = Arc::clone(&stop_flag);
                     let depth = params.depth.unwrap_or(255);
 
