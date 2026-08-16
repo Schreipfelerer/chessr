@@ -18,7 +18,7 @@ const BENCH_FENS: &[&str] = &[
 /// nodes/NPS.
 pub fn bench(depth: u8) {
     let stop_flag = Arc::new(AtomicBool::new(false));
-    let mut total_nodes = 0u32;
+    let mut total_nodes = 0u64;
     let start = Instant::now();
     let mut tt = TranspositionTable::new();
 
@@ -29,7 +29,7 @@ pub fn bench(depth: u8) {
     }
 
     let elapsed = start.elapsed();
-    let nps = (total_nodes as f32 / elapsed.as_secs_f32().max(1e-9)) as u32;
+    let nps = (total_nodes as f64 / elapsed.as_secs_f64().max(1e-9)) as u64;
 
     println!(
         "Bench: {} nodes, {:.2}s, {} nps",
@@ -39,7 +39,7 @@ pub fn bench(depth: u8) {
     );
 }
 
-fn format_thousands(n: u32) -> String {
+fn format_thousands(n: u64) -> String { 
     let s = n.to_string();
     s.as_bytes()
         .rchunks(3)

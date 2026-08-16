@@ -13,70 +13,53 @@ use std::time::Instant;
 pub fn iterative_deepening(
     board_state: &mut BoardState,
     max_depth: u8,
-    time_budget: Option<u64>,
+    budget_ms: Option<u64>,
     stop_flag: &Arc<AtomicBool>,
     tt: &mut TranspositionTable,
-) -> (Move, u32) {
+) -> (Move, u64) {
     let start = Instant::now();
     let moves = generate_moves(board_state, false);
     let mut best_move = moves[0]; // fallback, always legal
-    let mut nodes = 0u32;
+    let mut ctx = SearchCtx {
+        nodes: 0,
+        stop_flag,
+        start,
+        budget_ms,
+        tt,
+    };
 
     for depth in 1..=max_depth {
         if stop_flag.load(Ordering::Relaxed) {
             break;
         }
 
-        let Some((mv, score)) = search_root(
-            board_state,
-            depth,
-            stop_flag,
-            start,
-            time_budget,
-            &mut nodes,
-            tt,
-        ) else {
+        let Some((mv, score)) = search_root(board_state, depth, &mut ctx) else {
             break; // aborted mid-depth, keep previous best_move
         };
 
         best_move = mv;
         println!(
-            "info depth {depth} score cp {} time {} nodes {nodes} pv {mv}",
+            "info depth {depth} score cp {} time {} nodes {} pv {mv}",
             score / 10,
             start.elapsed().as_millis(),
+            ctx.nodes,
         );
     }
 
-    (best_move, nodes)
+    (best_move, ctx.nodes)
 }
 
 fn search_root(
     board_state: &mut BoardState,
     depth: u8,
-    stop_flag: &AtomicBool,
-    start: Instant,
-    budget_ms: Option<u64>,
-    nodes: &mut u32,
-    tt: &mut TranspositionTable,
+    ctx: &mut SearchCtx,
 ) -> Option<(Move, i32)> {
     let moves = generate_moves(board_state, false);
     let mut best_move = moves[0];
     let mut best_score = i32::MIN + 1;
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let score = search(
-            board_state,
-            depth - 1,
-            i32::MIN + 1,
-            -best_score,
-            nodes,
-            stop_flag,
-            start,
-            budget_ms,
-            0,
-            tt,
-        )
-        .map(|e| -e);
+        let score = search(board_state, depth - 1, i32::MIN + 1, -best_score, 0, ctx).map(|e| -e);
         board_state.undo_move(&undo);
         if score? > best_score {
             best_score = score?;
@@ -85,51 +68,55 @@ fn search_root(
     }
     Some((best_move, best_score))
 }
+struct SearchCtx<'a> {
+    nodes: u64,
+    stop_flag: &'a AtomicBool,
+    start: Instant,
+    budget_ms: Option<u64>,
+    tt: &'a mut TranspositionTable,
+}
+impl SearchCtx<'_> {
+    /// Returns true if the search should abort (timeout or external stop).
+    fn should_stop(&mut self) -> bool {
+        self.nodes += 1;
+        if !self.nodes.is_multiple_of(2048) {
+            return false;
+        }
+        if self.stop_flag.load(Ordering::Relaxed) {
+            return true;
+        }
+        if let Some(b) = self.budget_ms
+            && self.start.elapsed().as_millis() as u64 + 20 >= b
+        {
+            self.stop_flag.store(true, Ordering::Relaxed);
+            return true;
+        }
+        false
+    }
+}
 
 fn search(
     board_state: &mut BoardState,
     depth: u8,
     a: i32,
     beta: i32,
-    nodes: &mut u32,
-    stop_flag: &AtomicBool,
-    start: Instant,
-    budget_ms: Option<u64>,
     ply: u8,
-    tt: &mut TranspositionTable,
+    ctx: &mut SearchCtx,
 ) -> Option<i32> {
     if board_state.is_repetition() {
         return Some(0);
     }
 
     if depth == 0 {
-        return quiescence_search(
-            board_state,
-            4,
-            a,
-            beta,
-            nodes,
-            stop_flag,
-            start,
-            budget_ms,
-            ply,
-        );
+        return quiescence_search(board_state, 4, a, beta, ply, ctx);
     }
-    *nodes += 1;
-    if (*nodes).is_multiple_of(2048) {
-        if stop_flag.load(Ordering::Relaxed) {
-            return None;
-        }
-        if let Some(b) = budget_ms
-            && start.elapsed().as_millis() as u64 + 20 >= b
-        {
-            stop_flag.store(true, Ordering::Relaxed);
-            return None;
-        }
+
+    if ctx.should_stop() {
+        return None;
     }
 
     let mut move_hint: Option<Move> = None;
-    if let Some(entry) = tt.get_entry(board_state.hash) {
+    if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
         move_hint = Some(entry.best_move);
         if entry.depth >= depth && entry.is_valid(a, beta) {
             return Some(entry.score);
@@ -152,24 +139,12 @@ fn search(
     let mut best_move: Move = *moves.first()?;
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let evaluation = search(
-            board_state,
-            depth - 1,
-            -beta,
-            -alpha,
-            nodes,
-            stop_flag,
-            start,
-            budget_ms,
-            ply + 1,
-            tt,
-        )
-        .map(|e| -e);
+        let evaluation = search(board_state, depth - 1, -beta, -alpha, ply + 1, ctx).map(|e| -e);
         board_state.undo_move(&undo);
 
         if evaluation? >= beta {
             // Move too good, need to prune
-            tt.insert(TranspositionEntry {
+            ctx.tt.insert(TranspositionEntry {
                 best_move: mv,
                 hash: board_state.hash,
                 depth: depth,
@@ -184,7 +159,7 @@ fn search(
         }
     }
     if alpha == a {
-        tt.insert(TranspositionEntry {
+        ctx.tt.insert(TranspositionEntry {
             best_move: best_move,
             hash: board_state.hash,
             depth: depth,
@@ -192,7 +167,7 @@ fn search(
             node_type: Bound::Upper,
         });
     } else {
-        tt.insert(TranspositionEntry {
+        ctx.tt.insert(TranspositionEntry {
             best_move: best_move,
             hash: board_state.hash,
             depth: depth,
@@ -208,23 +183,11 @@ fn quiescence_search(
     depth: u8,
     alpha: i32,
     beta: i32,
-    nodes: &mut u32,
-    stop_flag: &AtomicBool,
-    start: Instant,
-    budget_ms: Option<u64>,
     ply: u8,
+    ctx: &mut SearchCtx,
 ) -> Option<i32> {
-    *nodes += 1;
-    if (*nodes).is_multiple_of(2048) {
-        if stop_flag.load(Ordering::Relaxed) {
-            return None;
-        }
-        if let Some(b) = budget_ms
-            && start.elapsed().as_millis() as u64 + 20 >= b
-        {
-            stop_flag.store(true, Ordering::Relaxed);
-            return None;
-        }
+    if ctx.should_stop() {
+        return None;
     }
 
     let stand_pat = eval(board_state);
@@ -251,18 +214,8 @@ fn quiescence_search(
     }
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let evaluation = quiescence_search(
-            board_state,
-            depth - 1,
-            -beta,
-            -alpha,
-            nodes,
-            stop_flag,
-            start,
-            budget_ms,
-            ply + 1,
-        )
-        .map(|e| -e);
+        let evaluation =
+            quiescence_search(board_state, depth - 1, -beta, -alpha, ply + 1, ctx).map(|e| -e);
         board_state.undo_move(&undo);
 
         if evaluation? >= beta {
