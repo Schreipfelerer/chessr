@@ -60,6 +60,7 @@ fn search_root(
     let moves = generate_moves(board_state, false);
     let mut best_move = moves[0];
     let mut best_score = i32::MIN + 1;
+
     for mv in moves {
         let undo = board_state.make_move(mv);
         let score = search(board_state, depth - 1, i32::MIN + 1, -best_score, 1, ctx).map(|e| -e);
@@ -101,7 +102,7 @@ impl SearchCtx<'_> {
 fn search(
     board_state: &mut BoardState,
     depth: u8,
-    a: i32,
+    alpha: i32,
     beta: i32,
     ply: u8,
     ctx: &mut SearchCtx,
@@ -111,7 +112,7 @@ fn search(
     }
 
     if depth == 0 {
-        return quiescence_search(board_state, 4, a, beta, ply, ctx);
+        return quiescence_search(board_state, 6, alpha, beta, ply, ctx);
     }
 
     if ctx.should_stop() {
@@ -120,13 +121,13 @@ fn search(
 
     let mut move_hint: Option<Move> = None;
     if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
-        move_hint = Some(entry.best_move);
-        if entry.depth >= depth && entry.is_valid(a, beta) {
-            return Some(from_tt(entry.score, ply));
+        move_hint = entry.best_move;
+        if entry.depth >= depth && entry.is_valid(alpha, beta) {
+            return Some(entry.get_score(ply));
         }
     }
 
-    let mut alpha = a;
+    let mut alpha = alpha;
 
     let mut moves = generate_moves(board_state, false);
     if moves.is_empty() {
@@ -139,7 +140,7 @@ fn search(
     if let Some(mh) = move_hint {
         moves.insert(0, mh);
     }
-    let mut best_move: Move = *moves.first()?;
+    let mut best_move: Option<Move> = None;
     for mv in moves {
         let undo = board_state.make_move(mv);
         let evaluation = search(board_state, depth - 1, -beta, -alpha, ply + 1, ctx).map(|e| -e);
@@ -147,36 +148,39 @@ fn search(
 
         if evaluation? >= beta {
             // Move too good, need to prune
-            ctx.tt.insert(TranspositionEntry {
-                best_move: mv,
-                hash: board_state.hash,
-                depth: depth,
-                score: to_tt(beta, ply),
-                node_type: Bound::Lower,
-            });
+            ctx.tt.insert(TranspositionEntry::new(
+                Some(mv),
+                depth,
+                beta,
+                board_state.hash,
+                Bound::Lower,
+                ply,
+            ));
             return Some(beta);
         }
         if alpha < evaluation? {
             alpha = evaluation?;
-            best_move = mv;
+            best_move = Some(mv);
         }
     }
-    if alpha == a {
-        ctx.tt.insert(TranspositionEntry {
-            best_move: best_move,
-            hash: board_state.hash,
-            depth: depth,
-            score: to_tt(alpha, ply),
-            node_type: Bound::Upper,
-        });
+    if best_move.is_none() {
+        ctx.tt.insert(TranspositionEntry::new(
+            best_move,
+            depth,
+            alpha,
+            board_state.hash,
+            Bound::Upper,
+            ply,
+        ))
     } else {
-        ctx.tt.insert(TranspositionEntry {
-            best_move: best_move,
-            hash: board_state.hash,
-            depth: depth,
-            score: to_tt(alpha, ply),
-            node_type: Bound::Exact,
-        });
+        ctx.tt.insert(TranspositionEntry::new(
+            best_move,
+            depth,
+            alpha,
+            board_state.hash,
+            Bound::Exact,
+            ply,
+        ))
     }
     Some(alpha)
 }
@@ -228,23 +232,4 @@ fn quiescence_search(
         alpha = max(alpha, evaluation?);
     }
     Some(alpha)
-}
-
-fn to_tt(score: i32, ply: u8) -> i32 {
-    if score > MATE_THRESHOLD {
-        score + ply as i32
-    } else if score < -MATE_THRESHOLD {
-        score - ply as i32
-    } else {
-        score
-    }
-}
-fn from_tt(score: i32, ply: u8) -> i32 {
-    if score > MATE_THRESHOLD {
-        score - ply as i32
-    } else if score < -MATE_THRESHOLD {
-        score + ply as i32
-    } else {
-        score
-    }
 }
