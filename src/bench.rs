@@ -1,5 +1,5 @@
 use crate::board::BoardState;
-use crate::search::iterative_deepening;
+use crate::search::{TranspositionTable, iterative_deepening};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Instant;
@@ -20,10 +20,11 @@ pub fn bench(depth: u8) {
     let stop_flag = Arc::new(AtomicBool::new(false));
     let mut total_nodes = 0u32;
     let start = Instant::now();
+    let mut tt = TranspositionTable::new();
 
     for fen in BENCH_FENS {
         let mut board_state = BoardState::from_fen(fen).unwrap();
-        let (_mv, nodes) = iterative_deepening(&mut board_state, depth, None, &stop_flag);
+        let (_mv, nodes) = iterative_deepening(&mut board_state, depth, None, &stop_flag, &mut tt);
         total_nodes += nodes;
     }
 

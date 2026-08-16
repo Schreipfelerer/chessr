@@ -1,6 +1,10 @@
+mod transposition;
+pub use transposition::TranspositionTable;
+
 use crate::board::{BoardState, Move};
 use crate::eval::eval;
 use crate::movegen::{generate_moves, is_check};
+use crate::search::transposition::{Bound, TranspositionEntry};
 use std::cmp::max;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,6 +15,7 @@ pub fn iterative_deepening(
     max_depth: u8,
     time_budget: Option<u64>,
     stop_flag: &Arc<AtomicBool>,
+    tt: &mut TranspositionTable,
 ) -> (Move, u32) {
     let start = Instant::now();
     let moves = generate_moves(board_state, false);
@@ -29,6 +34,7 @@ pub fn iterative_deepening(
             start,
             time_budget,
             &mut nodes,
+            tt,
         ) else {
             break; // aborted mid-depth, keep previous best_move
         };
@@ -51,6 +57,7 @@ fn search_root(
     start: Instant,
     budget_ms: Option<u64>,
     nodes: &mut u32,
+    tt: &mut TranspositionTable,
 ) -> Option<(Move, i32)> {
     let moves = generate_moves(board_state, false);
     let mut best_move = moves[0];
@@ -67,6 +74,7 @@ fn search_root(
             start,
             budget_ms,
             0,
+            tt,
         )
         .map(|e| -e);
         board_state.undo_move(&undo);
@@ -81,13 +89,14 @@ fn search_root(
 fn search(
     board_state: &mut BoardState,
     depth: u8,
-    alpha: i32,
+    a: i32,
     beta: i32,
     nodes: &mut u32,
     stop_flag: &AtomicBool,
     start: Instant,
     budget_ms: Option<u64>,
     ply: u8,
+    tt: &mut TranspositionTable,
 ) -> Option<i32> {
     if board_state.is_repetition() {
         return Some(0);
@@ -97,7 +106,7 @@ fn search(
         return quiescence_search(
             board_state,
             4,
-            alpha,
+            a,
             beta,
             nodes,
             stop_flag,
@@ -119,9 +128,17 @@ fn search(
         }
     }
 
-    let mut alpha = alpha;
+    let mut move_hint: Option<Move> = None;
+    if let Some(entry) = tt.get_entry(board_state.hash) {
+        move_hint = Some(entry.best_move);
+        if entry.depth >= depth && entry.is_valid(a, beta) {
+            return Some(entry.score);
+        }
+    }
 
-    let moves = generate_moves(board_state, false);
+    let mut alpha = a;
+
+    let mut moves = generate_moves(board_state, false);
     if moves.is_empty() {
         return Some(if is_check(board_state) {
             i32::MAX - ply as i32
@@ -129,6 +146,10 @@ fn search(
             0
         });
     }
+    if let Some(mh) = move_hint {
+        moves.insert(0, mh);
+    }
+    let mut best_move: Move = *moves.first()?;
     for mv in moves {
         let undo = board_state.make_move(mv);
         let evaluation = search(
@@ -141,15 +162,43 @@ fn search(
             start,
             budget_ms,
             ply + 1,
+            tt,
         )
         .map(|e| -e);
         board_state.undo_move(&undo);
 
         if evaluation? >= beta {
             // Move too good, need to prune
+            tt.insert(TranspositionEntry {
+                best_move: mv,
+                hash: board_state.hash,
+                depth: depth,
+                score: beta,
+                node_type: Bound::Lower,
+            });
             return Some(beta);
         }
-        alpha = max(alpha, evaluation?);
+        if alpha < evaluation? {
+            alpha = evaluation?;
+            best_move = mv;
+        }
+    }
+    if alpha == a {
+        tt.insert(TranspositionEntry {
+            best_move: best_move,
+            hash: board_state.hash,
+            depth: depth,
+            score: alpha,
+            node_type: Bound::Upper,
+        });
+    } else {
+        tt.insert(TranspositionEntry {
+            best_move: best_move,
+            hash: board_state.hash,
+            depth: depth,
+            score: alpha,
+            node_type: Bound::Exact,
+        });
     }
     Some(alpha)
 }

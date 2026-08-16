@@ -8,7 +8,7 @@ pub struct BoardState {
     pub board: Board,
     pub state_info: StateInfo,
     zobrist_hist: Vec<u64>,
-    hash: u64,
+    pub(crate) hash: u64,
 }
 
 impl BoardState {

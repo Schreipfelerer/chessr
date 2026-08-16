@@ -4,7 +4,7 @@ use std::fmt;
 // Bit 0-5 Source Square
 // Bit 6-11 Target Square
 // Bit 12-15 Special Flags (Promotion Flag, Castle Flag, Special Flags)
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Move(pub u16);
 
 impl Move {

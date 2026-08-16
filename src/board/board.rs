@@ -70,6 +70,7 @@ impl Board {
     }
     #[must_use]
     pub const fn start_pos() -> Self {
+        let mut hash = 0;
         let pawn_bb = 0xFF00;
         let knight_bb = 0x42;
         let bishop_bb = 0x24;
@@ -91,17 +92,26 @@ impl Board {
 
         // White
         mailbox[0] = Some(Piece::Rook);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Rook as usize][0];
         mailbox[1] = Some(Piece::Knight);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Knight as usize][1];
         mailbox[2] = Some(Piece::Bishop);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Bishop as usize][2];
         mailbox[3] = Some(Piece::Queen);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Queen as usize][3];
         mailbox[4] = Some(Piece::King);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::King as usize][4];
         mailbox[5] = Some(Piece::Bishop);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Bishop as usize][5];
         mailbox[6] = Some(Piece::Knight);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Knight as usize][6];
         mailbox[7] = Some(Piece::Rook);
+        hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Rook as usize][7];
 
         let mut i = 8;
         while i < 16 {
             mailbox[i] = Some(Piece::Pawn);
+            hash ^= ZOBRIST_PIECES[Color::White as usize][Piece::Pawn as usize][i];
             i += 1;
         }
 
@@ -109,22 +119,31 @@ impl Board {
         i = 48;
         while i < 56 {
             mailbox[i] = Some(Piece::Pawn);
+            hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Pawn as usize][i];
             i += 1;
         }
 
         mailbox[56] = Some(Piece::Rook);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Rook as usize][56];
         mailbox[57] = Some(Piece::Knight);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Knight as usize][57];
         mailbox[58] = Some(Piece::Bishop);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Bishop as usize][58];
         mailbox[59] = Some(Piece::Queen);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Queen as usize][59];
         mailbox[60] = Some(Piece::King);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::King as usize][60];
         mailbox[61] = Some(Piece::Bishop);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Bishop as usize][61];
         mailbox[62] = Some(Piece::Knight);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Knight as usize][62];
         mailbox[63] = Some(Piece::Rook);
+        hash ^= ZOBRIST_PIECES[Color::Black as usize][Piece::Rook as usize][63];
         Self {
             pieces,
             occupancy: [0xFFFF, 0xFFFF_0000_0000_0000, 0xFFFF_0000_0000_FFFF],
             mailbox,
-            hash: 0,
+            hash,
         }
     }
     #[must_use]
