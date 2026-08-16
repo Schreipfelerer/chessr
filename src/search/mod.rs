@@ -10,6 +10,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+const MATE_SCORE: i32 = 1_000_001_000;
+const MATE_THRESHOLD: i32 = 1_000_000_000;
+
 pub fn iterative_deepening(
     board_state: &mut BoardState,
     max_depth: u8,
@@ -59,7 +62,7 @@ fn search_root(
     let mut best_score = i32::MIN + 1;
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let score = search(board_state, depth - 1, i32::MIN + 1, -best_score, 0, ctx).map(|e| -e);
+        let score = search(board_state, depth - 1, i32::MIN + 1, -best_score, 1, ctx).map(|e| -e);
         board_state.undo_move(&undo);
         if score? > best_score {
             best_score = score?;
@@ -119,7 +122,7 @@ fn search(
     if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
         move_hint = Some(entry.best_move);
         if entry.depth >= depth && entry.is_valid(a, beta) {
-            return Some(entry.score);
+            return Some(from_tt(entry.score, ply));
         }
     }
 
@@ -128,7 +131,7 @@ fn search(
     let mut moves = generate_moves(board_state, false);
     if moves.is_empty() {
         return Some(if is_check(board_state) {
-            i32::MAX - ply as i32
+            -MATE_SCORE + ply as i32
         } else {
             0
         });
@@ -148,7 +151,7 @@ fn search(
                 best_move: mv,
                 hash: board_state.hash,
                 depth: depth,
-                score: beta,
+                score: to_tt(beta, ply),
                 node_type: Bound::Lower,
             });
             return Some(beta);
@@ -163,7 +166,7 @@ fn search(
             best_move: best_move,
             hash: board_state.hash,
             depth: depth,
-            score: alpha,
+            score: to_tt(alpha, ply),
             node_type: Bound::Upper,
         });
     } else {
@@ -171,7 +174,7 @@ fn search(
             best_move: best_move,
             hash: board_state.hash,
             depth: depth,
-            score: alpha,
+            score: to_tt(alpha, ply),
             node_type: Bound::Exact,
         });
     }
@@ -207,7 +210,7 @@ fn quiescence_search(
     let moves = generate_moves(board_state, true);
     if moves.is_empty() {
         return Some(if is_check(board_state) {
-            i32::MAX - ply as i32
+            -MATE_SCORE + ply as i32
         } else {
             return Some(stand_pat);
         });
@@ -225,4 +228,23 @@ fn quiescence_search(
         alpha = max(alpha, evaluation?);
     }
     Some(alpha)
+}
+
+fn to_tt(score: i32, ply: u8) -> i32 {
+    if score > MATE_THRESHOLD {
+        score + ply as i32
+    } else if score < -MATE_THRESHOLD {
+        score - ply as i32
+    } else {
+        score
+    }
+}
+fn from_tt(score: i32, ply: u8) -> i32 {
+    if score > MATE_THRESHOLD {
+        score - ply as i32
+    } else if score < -MATE_THRESHOLD {
+        score + ply as i32
+    } else {
+        score
+    }
 }
