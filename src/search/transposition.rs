@@ -3,21 +3,20 @@ use crate::board::Move;
 const TT_BITS: u32 = 20;
 const TT_SIZE: usize = 2_usize.pow(TT_BITS);
 
-#[derive(Clone, Copy)]
 pub struct TranspositionTable {
-    table: [Option<TranspositionEntry>; TT_SIZE],
+    table: Box<[Option<TranspositionEntry>]>,
 }
 impl TranspositionTable {
     pub fn new() -> Self {
         TranspositionTable {
-            table: [None; TT_SIZE],
+            table: vec![None; TT_SIZE].into_boxed_slice(),
         }
     }
-    pub fn get_entry(self, hash: u64) -> Option<TranspositionEntry> {
+    pub fn get_entry(&self, hash: u64) -> Option<TranspositionEntry> {
         let entry = self.table[(hash >> (64 - TT_BITS)) as usize];
         if entry?.hash == hash { entry } else { None }
     }
-    pub fn insert(mut self, entry: TranspositionEntry) {
+    pub fn insert(&mut self, entry: TranspositionEntry) {
         self.table[(entry.hash >> (64 - TT_BITS)) as usize] = Some(entry);
     }
 }

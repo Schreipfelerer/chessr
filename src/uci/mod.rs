@@ -3,7 +3,7 @@ use crate::movegen::{generate_moves, perft, perft_devide};
 use crate::search::{TranspositionTable, iterative_deepening};
 use crate::bench::bench;
 use std::io::{self, BufRead, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 
@@ -13,7 +13,7 @@ pub fn uci_loop() {
     let mut board_state = BoardState::start_pos();
     let stop_flag = Arc::new(AtomicBool::new(false));
     let mut search_handle: Option<JoinHandle<()>> = None;
-    let mut tt = TranspositionTable::new();
+    let tt = Arc::new(Mutex::new(TranspositionTable::new()));
 
     for line in stdin.lock().lines().flatten() {
         let mut parts = line.split_whitespace();
@@ -48,14 +48,16 @@ pub fn uci_loop() {
                     let mut thread_board = board_state.clone();
                     let thread_stop = Arc::clone(&stop_flag);
                     let depth = params.depth.unwrap_or(255);
+                    let thread_tt = Arc::clone(&tt);
 
                     search_handle = Some(std::thread::spawn(move || {
+                        let mut tt_guard = thread_tt.lock().unwrap();
                         let (m, _nodes) = iterative_deepening(
                             &mut thread_board,
                             depth,
                             time_budget,
                             &thread_stop,
-                            &mut tt,
+                            &mut tt_guard,
                         );
                         println!("bestmove {m}");
                         let _ = io::stdout().flush();
