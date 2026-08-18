@@ -9,6 +9,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       flake-utils,
       rust-overlay,
@@ -147,6 +148,15 @@
         };
       in
       {
+
+        packages.chessr = pkgs.rustPlatform.buildRustPackage {
+          pname = "chessr";
+          version = "0.2.0";
+          src = ./.;
+          cargoLock.lockFile = ./Cargo.lock;
+        };
+        packages.default = self.packages.${system}.chessr;
+
         devShells.default = pkgs.mkShell {
           packages = [
             pkgs.rust-bin.stable.latest.complete
@@ -154,6 +164,7 @@
             pkgs.perf
             pkgs.cutechess
             pkgs.stockfish
+            pkgs.lichess-bot
             chessrSnapshot
             chessrMatch
             chessrList
