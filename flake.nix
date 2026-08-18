@@ -164,7 +164,6 @@
             pkgs.perf
             pkgs.cutechess
             pkgs.stockfish
-            pkgs.lichess-bot
             chessrSnapshot
             chessrMatch
             chessrList

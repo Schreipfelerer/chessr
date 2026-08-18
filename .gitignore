@@ -7,13 +7,9 @@ books/*
 
 # Match results
 results/
-lichess_bot_auto_logs/
 
 # Engines to benchmark against
 baselines/
 
 # Added by cargo
 /target
-
-# Lichessbotconfig
-config.yml
