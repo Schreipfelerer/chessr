@@ -34,15 +34,15 @@ pub fn eval(board_state: &BoardState) -> i32 {
     for c in Color::ALL {
         let mut color_score = count_pst(board, c);
         color_score += count_pst_phase(board, c, phase);
-        color_score += punish_double_pawns(board, c);
-        color_score += score_past_pawns(board, c);
-        color_score += bishop_pair(board, c);
-        color_score += mobility(board, c);
+        //color_score += punish_double_pawns(board, c);
+        //color_score += score_past_pawns(board, c);
+        //color_score += bishop_pair(board, c);
+        //color_score += mobility(board, c);
 
-        score += if c == board_state.state_info.active_color {
-            color_score
+        if c == board_state.state_info.active_color {
+            score += color_score;
         } else {
-            -color_score
+            score -= color_score;
         }
     }
     score
@@ -56,6 +56,7 @@ fn bishop_pair(board: &Board, color: Color) -> i32 {
     }
 }
 
+// TODO BLCK SIDE ASEWLL
 fn score_past_pawns(board: &Board, color: Color) -> i32 {
     const PAST_MASK: u64 = 0x0383_8383_8383_8380;
     const PAST_MASK_NO_L: u64 = 0x0303_0303_0303_0300;
