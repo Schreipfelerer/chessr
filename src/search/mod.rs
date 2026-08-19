@@ -42,8 +42,7 @@ pub fn iterative_deepening(
 
         best_move = mv;
         println!(
-            "info depth {depth} score cp {} time {} nodes {} pv {mv}",
-            score / 10,
+            "info depth {depth} score cp {score} time {} nodes {} pv {mv}",
             start.elapsed().as_millis(),
             ctx.nodes,
         );

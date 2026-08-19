@@ -7,13 +7,11 @@ use pst::{
     BISHOP_PST, KING_PST_EG, KING_PST_MG, KNIGHT_PST, PAWN_PST_EG, PAWN_PST_MG, QUEEN_PST, ROOK_PST,
 };
 
-const PAWN_VALUE: i32 = 1000;
-const KNIGHT_VALUE: i32 = 3200;
-const BISHOP_VALUE: i32 = 3300;
-const ROOK_VALUE: i32 = 5000;
-const QUEEN_VALUE: i32 = 9000;
-
-const PST_SCALE: i32 = 10;
+const PAWN_VALUE: i32 = 100;
+const KNIGHT_VALUE: i32 = 320;
+const BISHOP_VALUE: i32 = 330;
+const ROOK_VALUE: i32 = 500;
+const QUEEN_VALUE: i32 = 900;
 
 // Phase weights
 const KNIGHT_PHASE: i32 = 1;
@@ -88,7 +86,7 @@ fn count_pst(board: &Board, color: Color) -> i32 {
             score += table[mirror(sq.ind())] + value;
         }
     }
-    score * PST_SCALE
+    score
 }
 
 // Count Piece Square Table Values for Seperate MG and EG Vaulues
@@ -106,7 +104,7 @@ fn count_pst_phase(board: &Board, color: Color, phase: i32) -> i32 {
             eg_score += eg_table[mirror(sq.ind())] + value;
         }
     }
-    ((mg_score * phase + eg_score * (TOTAL_PHASE - phase)) / TOTAL_PHASE) * PST_SCALE
+    (mg_score * phase + eg_score * (TOTAL_PHASE - phase)) / TOTAL_PHASE
 }
 
 /// 0 (pure endgame, no material) .. TOTAL_PHASE (both sides at full strength)
