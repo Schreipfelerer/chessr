@@ -23,6 +23,7 @@ const QUEEN_PHASE: i32 = 4;
 const TOTAL_PHASE: i32 = KNIGHT_PHASE * 4 + BISHOP_PHASE * 4 + ROOK_PHASE * 4 + QUEEN_PHASE * 2;
 
 const DOUBLE_PAWN_VALUE: i32 = -40;
+const PAST_PAWN_VALUE: i32 = 90;
 
 #[must_use]
 pub fn eval(board_state: &BoardState) -> i32 {
@@ -32,6 +33,7 @@ pub fn eval(board_state: &BoardState) -> i32 {
     score +=
         count_pst_phase(board, Color::White, phase) - count_pst_phase(board, Color::Black, phase);
     score += punish_double_pawns(board, Color::White) - punish_double_pawns(board, Color::Black);
+    score += score_past_pawns(board, Color::White) - score_past_pawns(board, Color::Black);
 
     let perspective = match board_state.state_info.active_color {
         Color::White => 1,
@@ -40,12 +42,31 @@ pub fn eval(board_state: &BoardState) -> i32 {
     score * perspective
 }
 
+fn score_past_pawns(board: &Board, color: Color) -> i32 {
+    let mut score = 0;
+    const PAST_MASK: u64 = 0x0383_8383_8383_8380;
+    const PAST_MASK_NO_L: u64 = 0x0303_0303_0303_0300;
+    const PAST_MASK_NO_R: u64 = 0x0181_8181_8181_8180;
+    let op_pawn_bb = board.get_piece_bitboard(!color, Piece::Pawn);
+    for sq in BitboardIter(board.get_piece_bitboard(color, Piece::Pawn)) {
+        let mask = match sq.file() {
+            0 => PAST_MASK_NO_L << sq.0,
+            7 => PAST_MASK_NO_R << sq.0,
+            _ => PAST_MASK << sq.0,
+        };
+        if op_pawn_bb & mask == 0 {
+            score += PAST_PAWN_VALUE;
+        }
+    }
+    score
+}
+
 // Subtract Value for every double Pawn
 fn punish_double_pawns(board: &Board, color: Color) -> i32 {
     let mut score = 0;
     const RANK_MASK: u64 = 0x0101_0101_0101_0101;
-    for i in 0..8{
-        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << i*8)).count_ones() > 1{
+    for i in 0..8 {
+        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << i * 8)).count_ones() > 1 {
             score += DOUBLE_PAWN_VALUE;
         }
     }
