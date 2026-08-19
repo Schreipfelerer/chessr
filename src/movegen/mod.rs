@@ -1,4 +1,4 @@
-mod r#const;
+pub(crate) mod r#const;
 mod generate;
 pub use generate::{generate_moves, is_check};
 mod perft;

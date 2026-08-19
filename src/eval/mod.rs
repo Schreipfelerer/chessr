@@ -6,6 +6,8 @@ mod pst;
 use pst::{
     BISHOP_PST, KING_PST_EG, KING_PST_MG, KNIGHT_PST, PAWN_PST_EG, PAWN_PST_MG, QUEEN_PST, ROOK_PST,
 };
+mod mobility;
+use mobility::mobility;
 
 const PAWN_VALUE: i32 = 100;
 const KNIGHT_VALUE: i32 = 320;
@@ -28,18 +30,22 @@ const BISHOP_PAIR_VALUE: i32 = 30;
 pub fn eval(board_state: &BoardState) -> i32 {
     let board = &board_state.board;
     let phase = game_phase(board);
-    let mut score = count_pst(board, Color::White) - count_pst(board, Color::Black);
-    score +=
-        count_pst_phase(board, Color::White, phase) - count_pst_phase(board, Color::Black, phase);
-    score += punish_double_pawns(board, Color::White) - punish_double_pawns(board, Color::Black);
-    score += score_past_pawns(board, Color::White) - score_past_pawns(board, Color::Black);
-    score += bishop_pair(board, Color::White) - bishop_pair(board, Color::Black);
+    let mut score = 0;
+    for c in Color::ALL {
+        let mut color_score = count_pst(board, c);
+        color_score += count_pst_phase(board, c, phase);
+        color_score += punish_double_pawns(board, c);
+        color_score += score_past_pawns(board, c);
+        color_score += bishop_pair(board, c);
+        color_score += mobility(board, c);
 
-    let perspective = match board_state.state_info.active_color {
-        Color::White => 1,
-        Color::Black => -1,
-    };
-    score * perspective
+        score += if c == board_state.state_info.active_color {
+            color_score
+        } else {
+            -color_score
+        }
+    }
+    score
 }
 
 fn bishop_pair(board: &Board, color: Color) -> i32 {
@@ -74,7 +80,8 @@ fn punish_double_pawns(board: &Board, color: Color) -> i32 {
     const RANK_MASK: u64 = 0x0101_0101_0101_0101;
     let mut score = 0;
     for i in 0..8 {
-        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << (i * 8))).count_ones() > 1 {
+        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << (i * 8))).count_ones() > 1
+        {
             score += DOUBLE_PAWN_VALUE;
         }
     }
