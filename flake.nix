@@ -124,9 +124,9 @@
             pkgs.stockfish
           ];
           text = ''
-            # Usage: chessr-vs-stockfish [elo=1500] [movetime_seconds=1/0.2] [book.pgn=books/8moves_v3.pgn]
+            # Usage: chessr-vs-stockfish [elo=1500] [movetime_seconds=1/1] [book.pgn=books/8moves_v3.pgn]
             elo="''${1:-1500}"
-            st="''${2:-1/0.2}"
+            st="''${2:-1/1}"
             book="''${3:-books/8moves_v3.pgn}"
 
             cargo build --profile release-fast
