@@ -7,17 +7,21 @@ pub struct TranspositionTable {
     table: Box<[Option<TranspositionEntry>]>,
 }
 impl TranspositionTable {
-    pub fn new() -> Self {
-        TranspositionTable {
-            table: vec![None; TT_SIZE].into_boxed_slice(),
-        }
-    }
+    #[must_use]
     pub fn get_entry(&self, hash: u64) -> Option<TranspositionEntry> {
         let entry = self.table[(hash >> (64 - TT_BITS)) as usize];
         if entry?.hash == hash { entry } else { None }
     }
     pub fn insert(&mut self, entry: TranspositionEntry) {
         self.table[(entry.hash >> (64 - TT_BITS)) as usize] = Some(entry);
+    }
+}
+
+impl Default for TranspositionTable {
+    fn default() -> Self {
+        TranspositionTable {
+            table: vec![None; TT_SIZE].into_boxed_slice(),
+        }
     }
 }
 

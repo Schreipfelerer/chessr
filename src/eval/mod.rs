@@ -51,10 +51,10 @@ fn bishop_pair(board: &Board, color: Color) -> i32 {
 }
 
 fn score_past_pawns(board: &Board, color: Color) -> i32 {
-    let mut score = 0;
     const PAST_MASK: u64 = 0x0383_8383_8383_8380;
     const PAST_MASK_NO_L: u64 = 0x0303_0303_0303_0300;
     const PAST_MASK_NO_R: u64 = 0x0181_8181_8181_8180;
+    let mut score = 0;
     let op_pawn_bb = board.get_piece_bitboard(!color, Piece::Pawn);
     for sq in BitboardIter(board.get_piece_bitboard(color, Piece::Pawn)) {
         let mask = match sq.file() {
@@ -71,10 +71,10 @@ fn score_past_pawns(board: &Board, color: Color) -> i32 {
 
 // Subtract Value for every double Pawn
 fn punish_double_pawns(board: &Board, color: Color) -> i32 {
-    let mut score = 0;
     const RANK_MASK: u64 = 0x0101_0101_0101_0101;
+    let mut score = 0;
     for i in 0..8 {
-        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << i * 8)).count_ones() > 1 {
+        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << (i * 8))).count_ones() > 1 {
             score += DOUBLE_PAWN_VALUE;
         }
     }
@@ -83,7 +83,7 @@ fn punish_double_pawns(board: &Board, color: Color) -> i32 {
 
 // Count Piece Sqaure Table Values for all pieces
 fn count_pst(board: &Board, color: Color) -> i32 {
-    let mirror = |sq: usize| if color == Color::White { sq } else { sq ^ 56 };
+    let mirror = |sq: usize| if color == Color::White { sq } else { sq ^ 0o70 };
 
     let mut score = 0;
     for (piece, table, value) in [
@@ -101,7 +101,7 @@ fn count_pst(board: &Board, color: Color) -> i32 {
 
 // Count Piece Square Table Values for Seperate MG and EG Vaulues
 fn count_pst_phase(board: &Board, color: Color, phase: i32) -> i32 {
-    let mirror = |sq: usize| if color == Color::White { sq } else { sq ^ 56 };
+    let mirror = |sq: usize| if color == Color::White { sq } else { sq ^ 0o70 };
 
     let mut mg_score = 0;
     let mut eg_score = 0;
@@ -117,7 +117,7 @@ fn count_pst_phase(board: &Board, color: Color, phase: i32) -> i32 {
     (mg_score * phase + eg_score * (TOTAL_PHASE - phase)) / TOTAL_PHASE
 }
 
-/// 0 (pure endgame, no material) .. TOTAL_PHASE (both sides at full strength)
+/// 0 (pure endgame, no material) .. `TOTAL_PHASE` (both sides at full strength)
 fn game_phase(board: &Board) -> i32 {
     let count = |c: Color, p: Piece| board.get_piece_bitboard(c, p).count_ones() as i32;
     let phase: i32 = Color::ALL

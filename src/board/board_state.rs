@@ -169,12 +169,13 @@ impl BoardState {
             zobrist ^= ZOBRIST_SIDE;
         }
         if let Some(sq) = self.state_info.ep_square {
-            zobrist ^= ZOBRIST_EP[sq.file() as usize]
+            zobrist ^= ZOBRIST_EP[sq.file() as usize];
         }
 
         self.hash = zobrist;
     }
 
+    #[must_use]
     pub fn is_repetition(&self) -> bool {
         let clock = self.state_info.half_move_clock as usize;
         self.zobrist_hist

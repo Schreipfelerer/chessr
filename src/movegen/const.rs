@@ -37,21 +37,21 @@ static BETWEEN_BYTES: AlignedBytes<32_768> =
     AlignedBytes(*include_bytes!(concat!(env!("OUT_DIR"), "/between.bin")));
 
 pub static PAWN_ATTACKS: &[[u64; 64]; 2] =
-    unsafe { &*(PAWN_BYTES_ATTACKS.0.as_ptr() as *const [[u64; 64]; 2]) };
+    unsafe { &*PAWN_BYTES_ATTACKS.0.as_ptr().cast::<[[u64; 64]; 2]>() };
 pub static KNIGHT_ATTACKS: &[u64; 64] =
-    unsafe { &*(KNIGHT_BYTES_ATTACKS.0.as_ptr() as *const [u64; 64]) };
+    unsafe { &*KNIGHT_BYTES_ATTACKS.0.as_ptr().cast::<[u64; 64]>() };
 pub static KING_ATTACKS: &[u64; 64] =
-    unsafe { &*(KING_BYTES_ATTACKS.0.as_ptr() as *const [u64; 64]) };
+    unsafe { &*KING_BYTES_ATTACKS.0.as_ptr().cast::<[u64; 64]>() };
 pub static BISHOP_ATTACKS: &[[u64; 512]; 64] =
-    unsafe { &*(BISHOP_BYTES_ATTACKS.0.as_ptr() as *const [[u64; 512]; 64]) };
+    unsafe { &*BISHOP_BYTES_ATTACKS.0.as_ptr().cast::<[[u64; 512]; 64]>() };
 pub static ROOK_ATTACKS: &[[u64; 4096]; 64] =
-    unsafe { &*(ROOK_BYTES_ATTACKS.0.as_ptr() as *const [[u64; 4096]; 64]) };
+    unsafe { &*ROOK_BYTES_ATTACKS.0.as_ptr().cast::<[[u64; 4096]; 64]>() };
 pub static BISHOP_BLOCKERS: &[u64; 64] =
-    unsafe { &*(BISHOP_BYTES_BLOCKER.0.as_ptr() as *const [u64; 64]) };
+    unsafe { &*BISHOP_BYTES_BLOCKER.0.as_ptr().cast::<[u64; 64]>() };
 pub static ROOK_BLOCKERS: &[u64; 64] =
-    unsafe { &*(ROOK_BYTES_BLOCKER.0.as_ptr() as *const [u64; 64]) };
+    unsafe { &*ROOK_BYTES_BLOCKER.0.as_ptr().cast::<[u64; 64]>() };
 pub static BETWEEN: &[[u64; 64]; 64] =
-    unsafe { &*(BETWEEN_BYTES.0.as_ptr() as *const [[u64; 64]; 64]) };
+    unsafe { &*BETWEEN_BYTES.0.as_ptr().cast::<[[u64; 64]; 64]>() };
 
 #[inline(always)]
 pub fn get_bishop_moves(sq: Sq64, bb: u64) -> u64 {

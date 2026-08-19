@@ -20,7 +20,7 @@ pub fn bench(depth: u8) {
     let stop_flag = Arc::new(AtomicBool::new(false));
     let mut total_nodes = 0u64;
     let start = Instant::now();
-    let mut tt = TranspositionTable::new();
+    let mut tt = TranspositionTable::default();
 
     for fen in BENCH_FENS {
         let mut board_state = BoardState::from_fen(fen).unwrap();

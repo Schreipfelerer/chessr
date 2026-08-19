@@ -80,12 +80,12 @@ impl Board {
         let pieces = [
             [pawn_bb, knight_bb, bishop_bb, rook_bb, queen_bb, king_bb],
             [
-                pawn_bb << 8 * 5,
-                knight_bb << 8 * 7,
-                bishop_bb << 8 * 7,
-                rook_bb << 8 * 7,
-                queen_bb << 8 * 7,
-                king_bb << 8 * 7,
+                pawn_bb << (8 * 5),
+                knight_bb << (8 * 7),
+                bishop_bb << (8 * 7),
+                rook_bb << (8 * 7),
+                queen_bb << (8 * 7),
+                king_bb << (8 * 7),
             ],
         ];
         let mut mailbox = [None; 64];

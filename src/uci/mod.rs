@@ -13,7 +13,7 @@ pub fn uci_loop() {
     let mut board_state = BoardState::start_pos();
     let stop_flag = Arc::new(AtomicBool::new(false));
     let mut search_handle: Option<JoinHandle<()>> = None;
-    let tt = Arc::new(Mutex::new(TranspositionTable::new()));
+    let tt = Arc::new(Mutex::new(TranspositionTable::default()));
 
     for line in stdin.lock().lines().flatten() {
         let mut parts = line.split_whitespace();

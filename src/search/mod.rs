@@ -170,7 +170,7 @@ fn search(
             board_state.hash,
             Bound::Upper,
             ply,
-        ))
+        ));
     } else {
         ctx.tt.insert(TranspositionEntry::new(
             best_move,
@@ -179,7 +179,7 @@ fn search(
             board_state.hash,
             Bound::Exact,
             ply,
-        ))
+        ));
     }
     Some(alpha)
 }
