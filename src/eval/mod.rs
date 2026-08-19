@@ -1,5 +1,5 @@
 use crate::{
-    board::{Board, BoardState, Color, Piece},
+    board::{Board, BoardState, Color, Piece, Sq64},
     movegen::BitboardIter,
 };
 mod pst;
@@ -34,10 +34,10 @@ pub fn eval(board_state: &BoardState) -> i32 {
     for c in Color::ALL {
         let mut color_score = count_pst(board, c);
         color_score += count_pst_phase(board, c, phase);
-        //color_score += punish_double_pawns(board, c);
-        //color_score += score_past_pawns(board, c);
-        //color_score += bishop_pair(board, c);
-        //color_score += mobility(board, c);
+        color_score += punish_double_pawns(board, c);
+        color_score += score_past_pawns(board, c);
+        color_score += bishop_pair(board, c);
+        color_score += mobility(board, c);
 
         if c == board_state.state_info.active_color {
             score += color_score;
@@ -56,24 +56,44 @@ fn bishop_pair(board: &Board, color: Color) -> i32 {
     }
 }
 
-// TODO BLCK SIDE ASEWLL
 fn score_past_pawns(board: &Board, color: Color) -> i32 {
-    const PAST_MASK: u64 = 0x0383_8383_8383_8380;
-    const PAST_MASK_NO_L: u64 = 0x0303_0303_0303_0300;
-    const PAST_MASK_NO_R: u64 = 0x0181_8181_8181_8180;
     let mut score = 0;
     let op_pawn_bb = board.get_piece_bitboard(!color, Piece::Pawn);
     for sq in BitboardIter(board.get_piece_bitboard(color, Piece::Pawn)) {
-        let mask = match sq.file() {
-            0 => PAST_MASK_NO_L << sq.0,
-            7 => PAST_MASK_NO_R << sq.0,
-            _ => PAST_MASK << sq.0,
-        };
-        if op_pawn_bb & mask == 0 {
-            score += PASSED_PAWN_BY_RANK[sq.rank() as usize];
+        if op_pawn_bb & passed_pawn_mask(sq, color) == 0 {
+            // Distance advanced toward promotion, from `color`'s perspective
+            let advance = match color {
+                Color::White => sq.rank(),
+                Color::Black => 7 - sq.rank(),
+            };
+            score += PASSED_PAWN_BY_RANK[advance as usize];
         }
     }
     score
+}
+
+/// Squares an enemy pawn could occupy to block `sq` from being a passed
+/// pawn: its own file plus both neighbors, on every rank strictly ahead
+/// of `sq` in `color`'s direction of travel.
+fn passed_pawn_mask(sq: Sq64, color: Color) -> u64 {
+    const FILE_A: u64 = 0x0101_0101_0101_0101;
+
+    let file = sq.file();
+    let mut file_band = FILE_A << file;
+    if file > 0 {
+        file_band |= FILE_A << (file - 1);
+    }
+    if file < 7 {
+        file_band |= FILE_A << (file + 1);
+    }
+
+    let rank = sq.rank();
+    let ahead_ranks = match color {
+        Color::White => !0u64 << ((rank + 1) * 8),
+        Color::Black => !0u64 >> ((8 - rank) * 8),
+    };
+
+    file_band & ahead_ranks
 }
 
 // Subtract Value for every double Pawn
@@ -81,7 +101,7 @@ fn punish_double_pawns(board: &Board, color: Color) -> i32 {
     const RANK_MASK: u64 = 0x0101_0101_0101_0101;
     let mut score = 0;
     for i in 0..8 {
-        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << (i * 8))).count_ones() > 1
+        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << i)).count_ones() > 1
         {
             score += DOUBLE_PAWN_VALUE;
         }

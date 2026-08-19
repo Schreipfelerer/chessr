@@ -1,12 +1,11 @@
+use crate::bench::bench;
 use crate::board::{BoardState, Color};
 use crate::movegen::{generate_moves, perft, perft_devide};
 use crate::search::{TranspositionTable, iterative_deepening};
-use crate::bench::bench;
 use std::io::{self, BufRead, Write};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-
 
 pub fn uci_loop() {
     let stdin = std::io::stdin();
@@ -51,7 +50,9 @@ pub fn uci_loop() {
                     let thread_tt = Arc::clone(&tt);
 
                     search_handle = Some(std::thread::spawn(move || {
-                        let mut tt_guard = thread_tt.lock().unwrap();
+                        let mut tt_guard = thread_tt
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         let (m, _nodes) = iterative_deepening(
                             &mut thread_board,
                             depth,
