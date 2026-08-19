@@ -21,7 +21,7 @@ const QUEEN_PHASE: i32 = 4;
 const TOTAL_PHASE: i32 = KNIGHT_PHASE * 4 + BISHOP_PHASE * 4 + ROOK_PHASE * 4 + QUEEN_PHASE * 2;
 
 const DOUBLE_PAWN_VALUE: i32 = -40;
-const PAST_PAWN_VALUE: i32 = 90;
+const PASSED_PAWN_BY_RANK: [i32; 8] = [0, 5, 10, 20, 35, 60, 100, 0];
 const BISHOP_PAIR_VALUE: i32 = 30;
 
 #[must_use]
@@ -63,7 +63,7 @@ fn score_past_pawns(board: &Board, color: Color) -> i32 {
             _ => PAST_MASK << sq.0,
         };
         if op_pawn_bb & mask == 0 {
-            score += PAST_PAWN_VALUE;
+            score += PASSED_PAWN_BY_RANK[sq.rank() as usize];
         }
     }
     score
