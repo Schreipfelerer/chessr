@@ -22,6 +22,7 @@ const TOTAL_PHASE: i32 = KNIGHT_PHASE * 4 + BISHOP_PHASE * 4 + ROOK_PHASE * 4 + 
 
 const DOUBLE_PAWN_VALUE: i32 = -40;
 const PAST_PAWN_VALUE: i32 = 90;
+const BISHOP_PAIR_VALUE: i32 = 30;
 
 #[must_use]
 pub fn eval(board_state: &BoardState) -> i32 {
@@ -32,12 +33,21 @@ pub fn eval(board_state: &BoardState) -> i32 {
         count_pst_phase(board, Color::White, phase) - count_pst_phase(board, Color::Black, phase);
     score += punish_double_pawns(board, Color::White) - punish_double_pawns(board, Color::Black);
     score += score_past_pawns(board, Color::White) - score_past_pawns(board, Color::Black);
+    score += bishop_pair(board, Color::White) - bishop_pair(board, Color::Black);
 
     let perspective = match board_state.state_info.active_color {
         Color::White => 1,
         Color::Black => -1,
     };
     score * perspective
+}
+
+fn bishop_pair(board: &Board, color: Color) -> i32 {
+    if board.get_piece_bitboard(color, Piece::Bishop).count_ones() >= 2 {
+        BISHOP_PAIR_VALUE
+    } else {
+        0
+    }
 }
 
 fn score_past_pawns(board: &Board, color: Color) -> i32 {
