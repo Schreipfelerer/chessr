@@ -22,6 +22,8 @@ const ROOK_PHASE: i32 = 2;
 const QUEEN_PHASE: i32 = 4;
 const TOTAL_PHASE: i32 = KNIGHT_PHASE * 4 + BISHOP_PHASE * 4 + ROOK_PHASE * 4 + QUEEN_PHASE * 2;
 
+const DOUBLE_PAWN_VALUE: i32 = -40;
+
 #[must_use]
 pub fn eval(board_state: &BoardState) -> i32 {
     let board = &board_state.board;
@@ -29,12 +31,25 @@ pub fn eval(board_state: &BoardState) -> i32 {
     let mut score = count_pst(board, Color::White) - count_pst(board, Color::Black);
     score +=
         count_pst_phase(board, Color::White, phase) - count_pst_phase(board, Color::Black, phase);
+    score += punish_double_pawns(board, Color::White) - punish_double_pawns(board, Color::Black);
 
     let perspective = match board_state.state_info.active_color {
         Color::White => 1,
         Color::Black => -1,
     };
     score * perspective
+}
+
+// Subtract Value for every double Pawn
+fn punish_double_pawns(board: &Board, color: Color) -> i32 {
+    let mut score = 0;
+    const RANK_MASK: u64 = 0x0101_0101_0101_0101;
+    for i in 0..8{
+        if (board.get_piece_bitboard(color, Piece::Pawn) & (RANK_MASK << i*8)).count_ones() > 1{
+            score += DOUBLE_PAWN_VALUE;
+        }
+    }
+    score
 }
 
 // Count Piece Sqaure Table Values for all pieces
