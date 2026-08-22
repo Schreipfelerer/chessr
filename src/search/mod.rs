@@ -58,23 +58,30 @@ fn search_root(
     depth: u8,
     ctx: &mut SearchCtx,
 ) -> Option<(Move, i32)> {
-    let moves = generate_moves(board_state, false);
+    let mut moves = generate_moves(board_state, false);
+    if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
+        if let Some(mh) = entry.best_move {
+            if let Some(pos) = moves.iter().position(|&m| m == mh) {
+                moves.swap(0, pos);
+            }
+        }
+    }
     let mut best_move = moves[0];
     let mut best_score = i32::MIN + 1;
 
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let result = search(board_state, depth - 1, i32::MIN + 1, -best_score, 2, ctx);
+        let result = search(board_state, depth - 1, i32::MIN + 1, -best_score, 1, ctx);
         board_state.undo_move(&undo);
         let (mut neg_score, bound) = result?;
-        if bound == Bound::Lower{
+        if bound == Bound::Lower {
             let undo = board_state.make_move(mv);
-            let full_result = search(board_state, depth -1, i32::MIN +1, i32::MAX, 2, ctx); 
+            let full_result = search(board_state, depth - 1, i32::MIN + 1, i32::MAX, 1, ctx);
             board_state.undo_move(&undo);
 
             (neg_score, _) = full_result?;
         }
-        if -neg_score > best_score{
+        if -neg_score > best_score {
             best_score = -neg_score;
             best_move = mv;
         }
@@ -147,12 +154,15 @@ fn search(
         });
     }
     if let Some(mh) = move_hint {
-        moves.insert(0, mh);
+        if let Some(pos) = moves.iter().position(|&m| m == mh) {
+            moves.swap(0, pos);
+        }
     }
     let mut best_move: Option<Move> = None;
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let evaluation = search(board_state, depth - 1, -beta, -alpha, ply + 1, ctx).map(|(e, _)| -e);
+        let evaluation =
+            search(board_state, depth - 1, -beta, -alpha, ply + 1, ctx).map(|(e, _)| -e);
         board_state.undo_move(&undo);
 
         if evaluation? >= beta {
@@ -191,10 +201,9 @@ fn search(
             ply,
         ));
     }
-    if best_move.is_none(){
+    if best_move.is_none() {
         Some((alpha, Bound::Upper))
-    }
-    else{
+    } else {
         Some((alpha, Bound::Exact))
     }
 }
