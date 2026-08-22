@@ -40,7 +40,8 @@ pub fn uci_loop() {
                     // searches never run concurrently against stdout/state.
                     if let Some(handle) = search_handle.take() {
                         stop_flag.store(true, Ordering::Relaxed);
-                        let _ = handle.join();
+                        // don't join here — let it finish on its own time
+                        std::thread::spawn(move || { let _ = handle.join(); });
                     }
                     stop_flag.store(false, Ordering::Relaxed);
 
