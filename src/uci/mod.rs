@@ -10,7 +10,7 @@ use std::thread::JoinHandle;
 pub fn uci_loop() {
     let stdin = std::io::stdin();
     let mut board_state = BoardState::start_pos();
-    let stop_flag = Arc::new(AtomicBool::new(false));
+    let mut stop_flag = Arc::new(AtomicBool::new(false));
     let mut search_handle: Option<JoinHandle<()>> = None;
     let tt = Arc::new(Mutex::new(TranspositionTable::default()));
 
@@ -43,7 +43,7 @@ pub fn uci_loop() {
                         // don't join here — let it finish on its own time
                         std::thread::spawn(move || { let _ = handle.join(); });
                     }
-                    stop_flag.store(false, Ordering::Relaxed);
+                    stop_flag = Arc::new(AtomicBool::new(false));
 
                     let mut thread_board = board_state.clone();
                     let thread_stop = Arc::clone(&stop_flag);
