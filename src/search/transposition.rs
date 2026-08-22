@@ -31,7 +31,7 @@ pub struct TranspositionEntry {
     pub(crate) depth: u8,
     score: i32,
     hash: u64,
-    node_type: Bound,
+    pub(crate) node_type: Bound,
 }
 impl TranspositionEntry {
     pub fn new(

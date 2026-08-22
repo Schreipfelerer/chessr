@@ -40,6 +40,8 @@ pub fn iterative_deepening(
             break; // aborted mid-depth, keep previous best_move
         };
 
+        // TODO stop iterating deeper for mate found
+
         best_move = mv;
         println!(
             "info depth {depth} score cp {score} time {} nodes {} pv {mv}",
@@ -62,10 +64,18 @@ fn search_root(
 
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let score = search(board_state, depth - 1, i32::MIN + 1, -best_score, 1, ctx).map(|e| -e);
+        let result = search(board_state, depth - 1, i32::MIN + 1, -best_score, 2, ctx);
         board_state.undo_move(&undo);
-        if score? > best_score {
-            best_score = score?;
+        let (mut neg_score, bound) = result?;
+        if bound == Bound::Lower{
+            let undo = board_state.make_move(mv);
+            let full_result = search(board_state, depth -1, i32::MIN +1, i32::MAX, 2, ctx); 
+            board_state.undo_move(&undo);
+
+            (neg_score, _) = full_result?;
+        }
+        if -neg_score > best_score{
+            best_score = -neg_score;
             best_move = mv;
         }
     }
@@ -105,13 +115,13 @@ fn search(
     beta: i32,
     ply: u8,
     ctx: &mut SearchCtx,
-) -> Option<i32> {
+) -> Option<(i32, Bound)> {
     if board_state.is_repetition() {
-        return Some(0);
+        return Some((0, Bound::Exact));
     }
 
     if depth == 0 {
-        return quiescence_search(board_state, 6, alpha, beta, ply, ctx);
+        return quiescence_search(board_state, 6, alpha, beta, ply, ctx).map(|e| (e, Bound::Exact));
     }
 
     if ctx.should_stop() {
@@ -122,7 +132,7 @@ fn search(
     if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
         move_hint = entry.best_move;
         if entry.depth >= depth && entry.is_valid(alpha, beta) {
-            return Some(entry.get_score(ply));
+            return Some((entry.get_score(ply), entry.node_type));
         }
     }
 
@@ -131,9 +141,9 @@ fn search(
     let mut moves = generate_moves(board_state, false);
     if moves.is_empty() {
         return Some(if is_check(board_state) {
-            -MATE_SCORE + ply as i32
+            (-MATE_SCORE + ply as i32, Bound::Exact)
         } else {
-            0
+            (0, Bound::Exact)
         });
     }
     if let Some(mh) = move_hint {
@@ -142,7 +152,7 @@ fn search(
     let mut best_move: Option<Move> = None;
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let evaluation = search(board_state, depth - 1, -beta, -alpha, ply + 1, ctx).map(|e| -e);
+        let evaluation = search(board_state, depth - 1, -beta, -alpha, ply + 1, ctx).map(|(e, _)| -e);
         board_state.undo_move(&undo);
 
         if evaluation? >= beta {
@@ -155,7 +165,7 @@ fn search(
                 Bound::Lower,
                 ply,
             ));
-            return Some(beta);
+            return Some((beta, Bound::Lower));
         }
         if alpha < evaluation? {
             alpha = evaluation?;
@@ -181,7 +191,12 @@ fn search(
             ply,
         ));
     }
-    Some(alpha)
+    if best_move.is_none(){
+        Some((alpha, Bound::Upper))
+    }
+    else{
+        Some((alpha, Bound::Exact))
+    }
 }
 
 fn quiescence_search(
