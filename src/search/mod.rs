@@ -1,5 +1,7 @@
 mod transposition;
 pub use transposition::TranspositionTable;
+mod order;
+use order::order_moves;
 
 use crate::board::{BoardState, Move};
 use crate::eval::eval;
@@ -59,13 +61,9 @@ fn search_root(
     ctx: &mut SearchCtx,
 ) -> Option<(Move, i32)> {
     let mut moves = generate_moves(board_state, false);
-    if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
-        if let Some(mh) = entry.best_move {
-            if let Some(pos) = moves.iter().position(|&m| m == mh) {
-                moves.swap(0, pos);
-            }
-        }
-    }
+    let tt_move = ctx.tt.get_entry(board_state.hash).and_then(|e| e.best_move);
+    order_moves(board_state, &mut moves, tt_move);
+
     let mut best_move = moves[0];
     let mut best_score = i32::MIN + 1;
 
@@ -139,9 +137,9 @@ fn search(
         return None;
     }
 
-    let mut move_hint: Option<Move> = None;
+    let mut tt_move: Option<Move> = None;
     if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
-        move_hint = entry.best_move;
+        tt_move = entry.best_move;
         if entry.depth >= depth && entry.is_valid(alpha, beta, ply) {
             return Some((entry.get_score(ply), entry.node_type));
         }
@@ -150,17 +148,14 @@ fn search(
     let mut alpha = alpha;
 
     let mut moves = generate_moves(board_state, false);
+    order_moves(board_state, &mut moves, tt_move);
+
     if moves.is_empty() {
         return Some(if is_check(board_state) {
             (-MATE_SCORE + ply as i32, Bound::Exact)
         } else {
             (0, Bound::Exact)
         });
-    }
-    if let Some(mh) = move_hint {
-        if let Some(pos) = moves.iter().position(|&m| m == mh) {
-            moves.swap(0, pos);
-        }
     }
     let mut best_move: Option<Move> = None;
     for mv in moves {

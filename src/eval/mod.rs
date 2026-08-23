@@ -9,11 +9,11 @@ use pst::{
 mod mobility;
 use mobility::mobility;
 
-const PAWN_VALUE: i32 = 100;
-const KNIGHT_VALUE: i32 = 315;
-const BISHOP_VALUE: i32 = 330;
-const ROOK_VALUE: i32 = 500;
-const QUEEN_VALUE: i32 = 900;
+pub(crate) const PAWN_VALUE: i32 = 100;
+pub(crate) const KNIGHT_VALUE: i32 = 315;
+pub(crate) const BISHOP_VALUE: i32 = 330;
+pub(crate) const ROOK_VALUE: i32 = 500;
+pub(crate) const QUEEN_VALUE: i32 = 900;
 
 // Phase weights
 const KNIGHT_PHASE: i32 = 1;
