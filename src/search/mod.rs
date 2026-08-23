@@ -71,11 +71,11 @@ fn search_root(
 
     for mv in moves {
         let undo = board_state.make_move(mv);
-        let result = search(board_state, depth - 1, i32::MIN + 1, -best_score, 1, ctx);
+        let score =
+            search(board_state, depth - 1, i32::MIN + 1, -best_score, 1, ctx).map(|(s, _)| -s);
         board_state.undo_move(&undo);
-        let (neg_score, _) = result?;
-        if -neg_score > best_score {
-            best_score = -neg_score;
+        if score? > best_score {
+            best_score = score?;
             best_move = mv;
         }
     }
@@ -108,6 +108,17 @@ impl SearchCtx<'_> {
     }
 }
 
+/// Negamax search with alpha-beta pruning. Returns the score from the
+/// perspective of the side to move (negamax convention).
+///
+/// `alpha`: best score we can already guarantee (lower bound).
+/// `beta`: best score the opponent can already guarantee elsewhere; if we
+/// beat it, they won't let this line happen, so we cut off early.
+///
+/// Returns `None` if aborted (time/stop). Otherwise `(score, bound)`:
+/// - `Exact`: true value.
+/// - `Lower`: true value >= score (beta cutoff, score == beta).
+/// - `Upper`: true value <= score (no move beat alpha, score == alpha).
 fn search(
     board_state: &mut BoardState,
     depth: u8,
