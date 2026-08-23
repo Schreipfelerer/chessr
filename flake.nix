@@ -92,7 +92,7 @@
               -each proto=uci "st=$st"
               -rounds 50 -repeat -games 2
               -pgnout results/vs_chessr_"$spec".pgn
-              -concurrency 8 -debug
+              -concurrency 8 -recover
             )
             if [ "$use_sprt" = true ]; then
               args+=( -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05 )
@@ -137,7 +137,7 @@
               -each proto=uci "tc=$st"
               -rounds 50 -repeat -games 2
               -pgnout results/vs_sf_"$elo".pgn
-              -concurrency 8 -debug
+              -concurrency 8 -recover
             )
             if [ -n "$book" ]; then
               args+=( -openings "file=$book" format=pgn order=random )
