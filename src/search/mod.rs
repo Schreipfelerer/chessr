@@ -233,7 +233,9 @@ fn quiescence_search(
         alpha = stand_pat;
     }
 
-    let moves = generate_moves(board_state, true);
+    let mut moves = generate_moves(board_state, true);
+    order_moves(board_state, &mut moves, None);
+
     if moves.is_empty() {
         return Some(if is_check(board_state) {
             -MATE_SCORE + ply as i32
