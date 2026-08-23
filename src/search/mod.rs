@@ -73,14 +73,7 @@ fn search_root(
         let undo = board_state.make_move(mv);
         let result = search(board_state, depth - 1, i32::MIN + 1, -best_score, 1, ctx);
         board_state.undo_move(&undo);
-        let (mut neg_score, bound) = result?;
-        if bound == Bound::Lower {
-            let undo = board_state.make_move(mv);
-            let full_result = search(board_state, depth - 1, i32::MIN + 1, i32::MAX, 1, ctx);
-            board_state.undo_move(&undo);
-
-            (neg_score, _) = full_result?;
-        }
+        let (neg_score, _) = result?;
         if -neg_score > best_score {
             best_score = -neg_score;
             best_move = mv;
