@@ -59,11 +59,11 @@ impl TranspositionEntry {
             node_type,
         }
     }
-    pub fn is_valid(&self, alpha: i32, beta: i32) -> bool {
+    pub fn is_valid(&self, alpha: i32, beta: i32, ply: u8) -> bool {
         match self.node_type {
             Bound::Exact => true,
-            Bound::Lower => self.score >= beta,
-            Bound::Upper => self.score <= alpha,
+            Bound::Lower => self.get_score(ply) >= beta,
+            Bound::Upper => self.get_score(ply) <= alpha,
         }
     }
     pub fn get_score(&self, ply: u8) -> i32 {

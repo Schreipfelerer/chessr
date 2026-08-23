@@ -138,7 +138,7 @@ fn search(
     let mut move_hint: Option<Move> = None;
     if let Some(entry) = ctx.tt.get_entry(board_state.hash) {
         move_hint = entry.best_move;
-        if entry.depth >= depth && entry.is_valid(alpha, beta) {
+        if entry.depth >= depth && entry.is_valid(alpha, beta, ply) {
             return Some((entry.get_score(ply), entry.node_type));
         }
     }
