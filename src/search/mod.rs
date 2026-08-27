@@ -31,7 +31,7 @@ pub fn iterative_deepening(
         start,
         budget_ms,
         tt,
-        killers: [[None; 2]; 128],
+        killers: [[None; 2]; 256],
     };
 
     for depth in 1..=max_depth {
@@ -86,7 +86,7 @@ struct SearchCtx<'a> {
     start: Instant,
     budget_ms: Option<u64>,
     tt: &'a mut TranspositionTable,
-    killers: [[Option<Move>; 2]; 128],
+    killers: [[Option<Move>; 2]; 256],
 }
 impl SearchCtx<'_> {
     /// Returns true if the search should abort (timeout or external stop).
@@ -177,10 +177,7 @@ fn search(
                 ply,
             ));
             if !mv.flags().is_capture() {
-                if ctx.killers[ply as usize][0] != Some(mv) {
-                    ctx.killers[ply as usize][1] = ctx.killers[ply as usize][0];
-                    ctx.killers[ply as usize][0] = Some(mv);
-                }
+                store_killers(&mut ctx.killers[ply as usize], mv);
             }
             return Some((beta, Bound::Lower));
         }
@@ -212,6 +209,13 @@ fn search(
         Some((alpha, Bound::Upper))
     } else {
         Some((alpha, Bound::Exact))
+    }
+}
+
+fn store_killers(killers: &mut [Option<Move>; 2], mv: Move) {
+    if killers[0] != Some(mv) {
+        killers[1] = killers[0];
+        killers[0] = Some(mv);
     }
 }
 
