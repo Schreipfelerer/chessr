@@ -16,9 +16,12 @@ fn piece_value(p: Piece) -> i32 {
 
 /// Higher = search first. Non-captures score 0 so `sort_by_key` w/
 /// `Reverse` keeps them after captures without needing a special case.
-fn mvv_lva_score(board_state: &BoardState, mv: Move) -> i32 {
+fn mvv_lva_score(board_state: &BoardState, mv: Move, killers: [Option<Move>; 2]) -> i32 {
     let flags = mv.flags();
     if !flags.is_capture() {
+        if killers.iter().any(|mo| mo.is_some_and(|m| m == mv)) {
+            return 1;
+        }
         return 0;
     }
     let attacker = board_state.board.get_piece_at(mv.source());
@@ -36,6 +39,7 @@ pub fn order_moves(
     board_state: &BoardState,
     moves: &mut ArrayVec<Move, 256>,
     tt_move: Option<Move>,
+    killers: [Option<Move>; 2],
 ) {
     let mut start = 0;
     if let Some(mh) = tt_move {
@@ -44,5 +48,5 @@ pub fn order_moves(
             start = 1;
         }
     }
-    moves[start..].sort_by_key(|&mv| std::cmp::Reverse(mvv_lva_score(board_state, mv)));
+    moves[start..].sort_by_key(|&mv| std::cmp::Reverse(mvv_lva_score(board_state, mv, killers)));
 }

@@ -31,6 +31,7 @@ pub fn iterative_deepening(
         start,
         budget_ms,
         tt,
+        killers: [[None; 2]; 128],
     };
 
     for depth in 1..=max_depth {
@@ -62,7 +63,7 @@ fn search_root(
 ) -> Option<(Move, i32)> {
     let mut moves = generate_moves(board_state, false);
     let tt_move = ctx.tt.get_entry(board_state.hash).and_then(|e| e.best_move);
-    order_moves(board_state, &mut moves, tt_move);
+    order_moves(board_state, &mut moves, tt_move, [None; 2]);
 
     let mut best_move = moves[0];
     let mut best_score = i32::MIN + 1;
@@ -85,6 +86,7 @@ struct SearchCtx<'a> {
     start: Instant,
     budget_ms: Option<u64>,
     tt: &'a mut TranspositionTable,
+    killers: [[Option<Move>; 2]; 128],
 }
 impl SearchCtx<'_> {
     /// Returns true if the search should abort (timeout or external stop).
@@ -148,7 +150,7 @@ fn search(
     let mut alpha = alpha;
 
     let mut moves = generate_moves(board_state, false);
-    order_moves(board_state, &mut moves, tt_move);
+    order_moves(board_state, &mut moves, tt_move, ctx.killers[ply as usize]);
 
     if moves.is_empty() {
         return Some(if is_check(board_state) {
@@ -174,6 +176,12 @@ fn search(
                 Bound::Lower,
                 ply,
             ));
+            if !mv.flags().is_capture() {
+                if ctx.killers[ply as usize][0] != Some(mv) {
+                    ctx.killers[ply as usize][1] = ctx.killers[ply as usize][0];
+                    ctx.killers[ply as usize][0] = Some(mv);
+                }
+            }
             return Some((beta, Bound::Lower));
         }
         if alpha < evaluation? {
@@ -234,7 +242,7 @@ fn quiescence_search(
     }
 
     let mut moves = generate_moves(board_state, true);
-    order_moves(board_state, &mut moves, None);
+    order_moves(board_state, &mut moves, None, [None; 2]);
 
     if moves.is_empty() {
         return Some(if is_check(board_state) {
